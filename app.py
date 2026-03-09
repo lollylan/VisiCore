@@ -27,8 +27,20 @@ import routing
 import export as pdf_export
 
 
-# Pfad-Helfer (fuer Portable-Betrieb)
+# Pfad-Helfer (fuer Portable-Betrieb und .exe)
+import sys
+
 def get_base_dir():
+    """Verzeichnis neben der .exe bzw. neben app.py (fuer Daten, .env)."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_resource_dir():
+    """Verzeichnis der eingebetteten Ressourcen (templates, static)."""
+    if getattr(sys, 'frozen', False):
+        return sys._MEIPASS
     return os.path.dirname(os.path.abspath(__file__))
 
 
@@ -40,9 +52,10 @@ else:
 
 
 def create_app():
+    resource_dir = get_resource_dir()
     app = Flask(__name__,
-                static_folder='static',
-                template_folder='templates')
+                static_folder=os.path.join(resource_dir, 'static'),
+                template_folder=os.path.join(resource_dir, 'templates'))
 
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-me')
     app.config['DB_KEY'] = os.environ.get('DB_KEY', 'dev-db-key')
