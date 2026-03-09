@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Inaktive Patienten – {{ app_name }}{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('patienten_liste') }}">Patienten</a>
+    <span class="sep">›</span>
+    <span>Inaktive</span>
+</div>
+<div class="page-header">
+    <h1>📦 Inaktive Patienten</h1>
+</div>
+{% if patienten %}
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Typ</th>
+                <th>Standort</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in patienten %}
+            <tr>
+                <td><a href="{{ url_for('patient_detail', id=p.id) }}">{{ p.nachname }}, {{ p.vorname }}</a></td>
+                <td><span class="badge badge-{{ p.wohnort_typ|lower }}">{{ p.wohnort_typ }}</span></td>
+                <td>{{ p.einrichtung_name or p.adresse or '–' }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('patient_aktivieren', id=p.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-success">Aktivieren</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>Keine inaktiven Patienten.</p>
+</div>
+{% endif %}
+{% endblock %}

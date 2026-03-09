@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{% if einrichtung %}Einrichtung bearbeiten{% else %}Neue Einrichtung{% endif %} – {{ app_name }}{%
+endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('einrichtungen_liste') }}">Einrichtungen</a>
+    <span class="sep">›</span>
+    <span>{% if einrichtung %}Bearbeiten{% else %}Neu{% endif %}</span>
+</div>
+<div class="page-header">
+    <h1>{% if einrichtung %}✏️ Einrichtung bearbeiten{% else %}➕ Neue Einrichtung{% endif %}</h1>
+</div>
+<div class="card">
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label class="form-label" for="name">Name *</label>
+            <input type="text" id="name" name="name" class="form-control" required
+                value="{{ einrichtung.name if einrichtung else '' }}" placeholder="z.B. Seniorenheim Am Park">
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex:2;">
+                <label class="form-label" for="strasse">Straße + Nr.</label>
+                <input type="text" id="strasse" name="strasse" class="form-control" placeholder="z.B. Musterstraße 1"
+                    value="{{ einrichtung.strasse if einrichtung and einrichtung.strasse is defined and einrichtung.strasse else '' }}">
+            </div>
+            <div class="form-group" style="flex:0 0 120px;">
+                <label class="form-label" for="plz">PLZ</label>
+                <input type="text" id="plz" name="plz" class="form-control" placeholder="97070"
+                    value="{{ einrichtung.plz if einrichtung and einrichtung.plz is defined and einrichtung.plz else '' }}">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label class="form-label" for="stadt">Stadt</label>
+                <input type="text" id="stadt" name="stadt" class="form-control" placeholder="Stadt"
+                    value="{{ einrichtung.stadt if einrichtung and einrichtung.stadt is defined and einrichtung.stadt else praxis_stadt }}">
+            </div>
+        </div>
+        {% if einrichtung and einrichtung.latitude and einrichtung.longitude %}
+        <div style="margin-bottom:0.75rem; padding:0.5rem 0.75rem; background:var(--bg-secondary); border-radius:var(--radius); color:var(--text-muted); font-size:0.8rem;">
+            Koordinaten: {{ einrichtung.latitude }}, {{ einrichtung.longitude }}
+        </div>
+        {% elif einrichtung and einrichtung.adresse and not einrichtung.latitude %}
+        <div style="margin-bottom:0.75rem; padding:0.5rem 0.75rem; background:rgba(239,68,68,0.15); border:1px solid var(--danger); border-radius:var(--radius); color:var(--danger); font-size:0.85rem;">
+            ⚠️ Adresse konnte nicht geocodiert werden. Bitte überprüfen.
+        </div>
+        {% endif %}
+        <div class="form-group">
+            <label class="form-label" for="standard_behandler_id">Standard-Behandler (Optional)</label>
+            <select id="standard_behandler_id" name="standard_behandler_id" class="form-control">
+                <option value="">Keiner</option>
+                {% for b in behandler %}
+                <option value="{{ b.id }}" {% if einrichtung and einrichtung.standard_behandler_id==b.id %}selected{%
+                    endif %}>
+                    {{ b.name }} ({{ b.rolle or 'Arzt' }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+            <a href="{{ url_for('einrichtungen_liste') }}" class="btn btn-outline">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

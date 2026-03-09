@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Inaktive Bewohner - PieksPlan{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Inaktive Bewohner</h1>
+        <p class="page-subtitle">Deaktivierte Bewohner k&ouml;nnen reaktiviert oder endg&uuml;ltig gel&ouml;scht werden.
+        </p>
+    </div>
+</div>
+
+{% if bewohner %}
+<div class="card">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Pflegeheim</th>
+                    <th>Wohngruppe</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for bew in bewohner %}
+                <tr>
+                    <td><strong>{{ bew.nachname }}, {{ bew.vorname }}</strong></td>
+                    <td>{{ bew.pflegeheim_name }}</td>
+                    <td>{{ bew.wohngruppe_name }}</td>
+                    <td>
+                        <div class="btn-group">
+                            <form method="POST" action="{{ url_for('bewohner_aktivieren', id=bew.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-success btn-sm">Reaktivieren</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('bewohner_loeschen', id=bew.id) }}"
+                                class="confirm-form"
+                                onsubmit="return confirmDelete('Bewohner ENDGUELTIG loeschen? Alle Daten werden unwiderruflich entfernt!')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-danger btn-sm">Endg&uuml;ltig l&ouml;schen</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">✅</div>
+    <p class="empty-state-text">Keine inaktiven Bewohner vorhanden.</p>
+</div>
+{% endif %}
+{% endblock %}

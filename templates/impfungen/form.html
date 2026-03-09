@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}{% if impfung %}Impfung bearbeiten{% else %}Neue Impfung{% endif %} – {{ app_name }}{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('patienten_liste') }}">Patienten</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('patient_detail', id=patient.id) }}">{{ patient.nachname }}, {{ patient.vorname }}</a>
+    <span class="sep">›</span>
+    <span>{% if impfung %}Impfung bearbeiten{% else %}Neue Impfung{% endif %}</span>
+</div>
+<div class="page-header">
+    <h1>{% if impfung %}✏️ Impfung bearbeiten{% else %}💉 Neue Impfung{% endif %}</h1>
+</div>
+<div class="card">
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        {% if not impfung %}
+        <!-- Nur bei Neuanlage -->
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="impftyp">Impftyp *</label>
+                <input type="text" id="impftyp" name="impftyp" class="form-control" required list="impftyp-liste"
+                    placeholder="z.B. Grippe, Corona, Tetanus…">
+                <datalist id="impftyp-liste">
+                    <option value="Grippe (Influenza)">
+                    <option value="Corona (COVID-19)">
+                </datalist>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="wiederholung_intervall_jahre">Intervall (Jahre)</label>
+                <input type="number" id="wiederholung_intervall_jahre" name="wiederholung_intervall_jahre"
+                    class="form-control" min="0" placeholder="z.B. 10">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="wiederholung_reset_monat">Jährlicher Reset-Monat</label>
+                <select id="wiederholung_reset_monat" name="wiederholung_reset_monat" class="form-control">
+                    <option value="">Nicht zutreffend (nur Intervall)</option>
+                    <option value="1">Januar</option>
+                    <option value="2">Februar</option>
+                    <option value="3">März</option>
+                    <option value="4">April</option>
+                    <option value="5">Mai</option>
+                    <option value="6">Juni</option>
+                    <option value="7">Juli</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Dezember</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-check">
+                <input type="checkbox" name="ist_standardimpfung"> Standardimpfung
+            </label>
+        </div>
+        {% else %}
+        <!-- Bei Bearbeitung: Vollständiges Formular -->
+        <h3 style="margin-bottom:1rem;">{{ impfung.impftyp }}</h3>
+
+        <div class="form-group">
+            <label class="form-label">Einverständnis</label>
+            <select name="einverstaendnis_status" class="form-control">
+                <option value="NICHT_ANGEFRAGT" {% if impfung.einverstaendnis_status=='NICHT_ANGEFRAGT' %}selected{%
+                    endif %}>Nicht angefragt</option>
+                <option value="ANGEFRAGT" {% if impfung.einverstaendnis_status=='ANGEFRAGT' %}selected{% endif %}>Angefragt (keine Antwort)</option>
+                <option value="JA" {% if impfung.einverstaendnis_status=='JA' %}selected{% endif %}>Ja</option>
+                <option value="NEIN" {% if impfung.einverstaendnis_status=='NEIN' %}selected{% endif %}>Nein</option>
+                <option value="JA_JAEHRLICH" {% if impfung.einverstaendnis_status=='JA_JAEHRLICH' %}selected{% endif %}>
+                    Ja (jährlich)</option>
+                <option value="JA_JAEHRLICH_NACHFRAGEN" {% if impfung.einverstaendnis_status=='JA_JAEHRLICH_NACHFRAGEN'
+                    %}selected{% endif %}>Ja (jährlich nachfragen)</option>
+                <option value="NEIN_JAEHRLICH_NACHFRAGEN" {% if
+                    impfung.einverstaendnis_status=='NEIN_JAEHRLICH_NACHFRAGEN' %}selected{% endif %}>Nein (jährlich
+                    nachfragen)</option>
+            </select>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Einverständnis-Jahr{% if 'Grippe' in impfung.impftyp %}/Saison{% endif
+                    %}</label>
+                <input type="number" name="einverstaendnis_jahr" class="form-control"
+                    value="{{ impfung.einverstaendnis_jahr if impfung.einverstaendnis_jahr else '' }}"
+                    placeholder="{{ current_year }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-control">
+                    <option value="OFFEN" {% if impfung.status=='OFFEN' %}selected{% endif %}>Offen</option>
+                    <option value="GEPLANT" {% if impfung.status=='GEPLANT' %}selected{% endif %}>Geplant</option>
+                    <option value="DURCHGEFUEHRT" {% if impfung.status=='DURCHGEFUEHRT' %}selected{% endif %}>
+                        Durchgeführt</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Plan-Datum</label>
+                <input type="date" name="plan_datum" class="form-control"
+                    value="{{ impfung.plan_datum if impfung.plan_datum else '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Durchführungsdatum</label>
+                <input type="date" name="durchfuehrung_datum" class="form-control"
+                    value="{{ impfung.durchfuehrung_datum if impfung.durchfuehrung_datum else '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Intervall (Jahre)</label>
+                <input type="number" name="wiederholung_intervall_jahre" class="form-control" min="0"
+                    value="{{ impfung.wiederholung_intervall_jahre if impfung.wiederholung_intervall_jahre else '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Jährlicher Reset-Monat</label>
+                <select name="wiederholung_reset_monat" class="form-control">
+                    <option value="" {% if not impfung.wiederholung_reset_monat %}selected{% endif %}>Nicht zutreffend
+                    </option>
+                    <option value="1" {% if impfung.wiederholung_reset_monat==1 %}selected{% endif %}>Januar</option>
+                    <option value="2" {% if impfung.wiederholung_reset_monat==2 %}selected{% endif %}>Februar</option>
+                    <option value="3" {% if impfung.wiederholung_reset_monat==3 %}selected{% endif %}>März</option>
+                    <option value="4" {% if impfung.wiederholung_reset_monat==4 %}selected{% endif %}>April</option>
+                    <option value="5" {% if impfung.wiederholung_reset_monat==5 %}selected{% endif %}>Mai</option>
+                    <option value="6" {% if impfung.wiederholung_reset_monat==6 %}selected{% endif %}>Juni</option>
+                    <option value="7" {% if impfung.wiederholung_reset_monat==7 %}selected{% endif %}>Juli</option>
+                    <option value="8" {% if impfung.wiederholung_reset_monat==8 %}selected{% endif %}>August</option>
+                    <option value="9" {% if impfung.wiederholung_reset_monat==9 %}selected{% endif %}>September</option>
+                    <option value="10" {% if impfung.wiederholung_reset_monat==10 %}selected{% endif %}>Oktober</option>
+                    <option value="11" {% if impfung.wiederholung_reset_monat==11 %}selected{% endif %}>November
+                    </option>
+                    <option value="12" {% if impfung.wiederholung_reset_monat==12 %}selected{% endif %}>Dezember
+                    </option>
+                </select>
+            </div>
+        </div>
+
+        {% if impfung.naechste_faelligkeit %}
+        <div
+            style="margin-bottom:1rem; padding:0.75rem; background:var(--info-bg); border-radius:var(--radius-sm); color:var(--info); font-size:0.85rem;">
+            📅 Nächste Fälligkeit: {{ impfung.naechste_faelligkeit|datum }}
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+            <a href="{{ url_for('patient_detail', id=patient.id) }}" class="btn btn-outline">Abbrechen</a>
+        </div>
+    </form>
+
+    {% if impfung %}
+    <div
+        style="margin-top:2rem; padding-top:1rem; border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            {% if dokument %}
+            <div
+                style="padding:0.75rem; background:var(--bg-secondary); border-radius:var(--radius-sm); display:inline-block;">
+                📎 <a href="{{ url_for('dokument_download', id=dokument.id) }}">{{ dokument.dateiname }}</a>
+                <form method="POST" action="{{ url_for('dokument_loeschen', id=dokument.id) }}"
+                    style="display:inline; margin-left:0.5rem;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-danger"
+                        onclick="return confirm('Dokument löschen?')">🗑</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <form method="POST" action="{{ url_for('impfung_loeschen', id=impfung.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Impfung löschen?')">🗑
+                Löschen</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+{% if impfung and not dokument %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📤 Einverständniserklärung hochladen</h3>
+    </div>
+    <form method="POST" action="{{ url_for('dokument_upload') }}" enctype="multipart/form-data"
+        style="display:flex; gap:0.75rem; align-items:end;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="patient_id" value="{{ patient.id }}">
+        <input type="hidden" name="impfung_id" value="{{ impfung.id }}">
+        <div class="form-group" style="flex:1; margin-bottom:0;">
+            <input type="file" name="datei" class="form-control" accept=".pdf" required>
+        </div>
+        <button type="submit" class="btn btn-primary">📤 Hochladen</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

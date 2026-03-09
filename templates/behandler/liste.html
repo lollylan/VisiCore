@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Behandler – {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>🩺 Behandler</h1>
+    <a href="{{ url_for('behandler_neu') }}" class="btn btn-primary">➕ Neuer Behandler</a>
+</div>
+{% if behandler %}
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>Farbe</th>
+                <th>Name</th>
+                <th>Rolle</th>
+                <th>Max. Min./Tag</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in behandler %}
+            <tr>
+                <td><span class="color-swatch" style="background:{{ b.farbe }};"></span></td>
+                <td style="font-weight:500;">{{ b.name }}</td>
+                <td>{{ b.rolle or '–' }}</td>
+                <td>{{ b.max_taegliche_minuten }} Min.</td>
+                <td>
+                    <div class="btn-group">
+                        <a href="{{ url_for('behandler_bearbeiten', id=b.id) }}" class="btn btn-sm btn-outline">✏️</a>
+                        {% if current_user.is_admin() %}
+                        <form method="POST" action="{{ url_for('behandler_loeschen', id=b.id) }}"
+                            style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-danger"
+                                onclick="return confirm('Behandler löschen?')">🗑</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">🩺</div>
+    <p>Noch keine Behandler angelegt.</p>
+    <a href="{{ url_for('behandler_neu') }}" class="btn btn-primary">➕ Ersten Behandler anlegen</a>
+</div>
+{% endif %}
+{% endblock %}

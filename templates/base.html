@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'dark';</script>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="VisiCore - Visitenplanung und Impfmanagement fuer Hausarztpraxen">
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('show')">☰</button>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="{{ url_for('dashboard') }}" class="sidebar-logo">
+                    <span class="logo-icon">V</span>
+                    <span>VisiCore</span>
+                </a>
+            </div>
+
+            <div class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Übersicht</div>
+                    <a href="{{ url_for('dashboard') }}"
+                        class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                        <span class="nav-icon">📊</span> Dashboard
+                    </a>
+                    <a href="{{ url_for('tagesplan') }}"
+                        class="nav-link {% if 'tagesplan' in request.endpoint|default('') %}active{% endif %}">
+                        <span class="nav-icon">🗓️</span> Tagesplan
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Patienten</div>
+                    <a href="{{ url_for('patienten_liste') }}"
+                        class="nav-link {% if 'patient' in request.endpoint|default('') %}active{% endif %}">
+                        <span class="nav-icon">👥</span> Alle Patienten
+                    </a>
+                    <a href="{{ url_for('patienten_liste', wohnort='ZUHAUSE') }}" class="nav-link">
+                        <span class="nav-icon">🏠</span> Hausbesuche
+                    </a>
+                    <a href="{{ url_for('patienten_liste', wohnort='HEIM') }}" class="nav-link">
+                        <span class="nav-icon">🏥</span> Heimbewohner
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Einrichtungen</div>
+                    <a href="{{ url_for('einrichtungen_liste') }}"
+                        class="nav-link {% if 'einrichtung' in request.endpoint|default('') %}active{% endif %}">
+                        <span class="nav-icon">🏢</span> Einrichtungen
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Team</div>
+                    <a href="{{ url_for('behandler_liste') }}"
+                        class="nav-link {% if 'behandler' in request.endpoint|default('') %}active{% endif %}">
+                        <span class="nav-icon">🩺</span> Behandler
+                    </a>
+                </div>
+
+                {% if current_user.is_admin() %}
+                <div class="nav-section">
+                    <div class="nav-section-title">Administration</div>
+                    <a href="{{ url_for('admin_nutzer') }}"
+                        class="nav-link {% if request.endpoint == 'admin_nutzer' %}active{% endif %}">
+                        <span class="nav-icon">👤</span> Benutzer
+                    </a>
+                    <a href="{{ url_for('admin_protokoll') }}"
+                        class="nav-link {% if request.endpoint == 'admin_protokoll' %}active{% endif %}">
+                        <span class="nav-icon">📋</span> Protokoll
+                    </a>
+                    <a href="{{ url_for('admin_backup') }}"
+                        class="nav-link {% if request.endpoint == 'admin_backup' %}active{% endif %}">
+                        <span class="nav-icon">💾</span> Backup
+                    </a>
+                    <a href="{{ url_for('admin_einstellungen') }}"
+                        class="nav-link {% if request.endpoint == 'admin_einstellungen' %}active{% endif %}">
+                        <span class="nav-icon">⚙️</span> Einstellungen
+                    </a>
+                </div>
+                {% endif %}
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Info</div>
+                    <a href="{{ url_for('rechtliches') }}"
+                        class="nav-link {% if request.endpoint == 'rechtliches' %}active{% endif %}">
+                        <span class="nav-icon">⚖️</span> Rechtliches
+                    </a>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">{{ current_user.benutzername[:2]|upper }}</div>
+                    <div>
+                        <div style="font-weight:500; color:var(--text-primary)">{{ current_user.benutzername }}</div>
+                        <div style="font-size:0.72rem; color:var(--text-muted)">
+                            {% if current_user.is_admin() %}Administrator{% else %}Nutzer{% endif %}
+                        </div>
+                    </div>
+                    <button class="theme-toggle" style="margin-left:auto;" onclick="toggleTheme()" title="Tag-/Nachtmodus umschalten" id="themeToggle">🌙</button>
+                    <a href="{{ url_for('logout') }}" style="font-size:1.1rem; margin-left:0.5rem;"
+                        title="Abmelden">🚪</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container" id="flashContainer">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}" onclick="this.remove()">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    <script>
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(f => {
+                f.style.transition = 'opacity 0.5s';
+                f.style.opacity = '0';
+                setTimeout(() => f.remove(), 500);
+            });
+        }, 4000);
+    </script>
+    {% endif %}
+    {% endwith %}
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+            html.dataset.theme = next;
+            localStorage.setItem('theme', next);
+            updateThemeIcon();
+        }
+        function updateThemeIcon() {
+            const btn = document.getElementById('themeToggle');
+            if (btn) btn.textContent = document.documentElement.dataset.theme === 'dark' ? '🌙' : '☀️';
+        }
+        updateThemeIcon();
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

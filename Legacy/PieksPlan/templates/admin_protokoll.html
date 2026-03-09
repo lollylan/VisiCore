@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Protokoll - PieksPlan{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Protokoll</h1>
+        <p class="page-subtitle">{{ total }} Eintr&auml;ge</p>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="card" style="margin-bottom: var(--space-lg);">
+    <form method="GET" action="{{ url_for('admin_protokoll') }}" class="protokoll-filter">
+        <div class="filter-row">
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                <label class="form-label" for="entitaet_typ">Entit&auml;t</label>
+                <select name="entitaet_typ" id="entitaet_typ" class="form-select">
+                    <option value="">Alle</option>
+                    {% for typ in ['pflegeheim', 'wohngruppe', 'bewohner', 'impfung', 'dokument', 'benutzer'] %}
+                    <option value="{{ typ }}" {% if filter_entitaet == typ %}selected{% endif %}>
+                        {{ typ|capitalize }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                <label class="form-label" for="benutzer_id">Benutzer</label>
+                <select name="benutzer_id" id="benutzer_id" class="form-select">
+                    <option value="">Alle</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if filter_benutzer == user.id %}selected{% endif %}>
+                        {{ user.benutzername }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                <label class="form-label" for="datum_von">Von</label>
+                <input type="date" name="datum_von" id="datum_von" class="form-input"
+                       value="{{ filter_von }}">
+            </div>
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                <label class="form-label" for="datum_bis">Bis</label>
+                <input type="date" name="datum_bis" id="datum_bis" class="form-input"
+                       value="{{ filter_bis }}">
+            </div>
+            <div style="display: flex; gap: var(--space-sm); align-items: flex-end; padding-bottom: 2px;">
+                <button type="submit" class="btn btn-primary">Filtern</button>
+                <a href="{{ url_for('admin_protokoll') }}" class="btn btn-outline-dark">Zur&uuml;cksetzen</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Protokoll-Tabelle -->
+{% if eintraege %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Zeitpunkt</th>
+                <th>Benutzer</th>
+                <th>Aktion</th>
+                <th>Entit&auml;t</th>
+                <th>Bezeichnung</th>
+                <th>&Auml;nderungen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in eintraege %}
+            <tr>
+                <td style="white-space: nowrap;">{{ e.zeitpunkt[:16]|replace('T', ' ') if e.zeitpunkt else '-' }}</td>
+                <td>{{ e.benutzer_name }}</td>
+                <td>
+                    <span class="badge badge-protokoll badge-{{ e.aktion|lower }}">
+                        {{ e.aktion }}
+                    </span>
+                </td>
+                <td>{{ e.entitaet_typ|capitalize }}</td>
+                <td>{{ e.entitaet_bezeichnung or '-' }}</td>
+                <td>
+                    {% if e.aenderungen %}
+                    <button class="btn btn-sm btn-outline-dark toggle-details"
+                            onclick="this.nextElementSibling.classList.toggle('hidden'); this.textContent = this.textContent.trim() === 'Details' ? 'Zuklappen' : 'Details';">
+                        Details
+                    </button>
+                    <div class="protokoll-details hidden">
+                        {% set changes = e.aenderungen|from_json %}
+                        {% if changes %}
+                        <dl class="change-list">
+                            {% for feld, werte in changes.items() %}
+                            <dt>{{ feld }}</dt>
+                            <dd>
+                                <span class="change-alt">{{ werte.alt or '(leer)' }}</span>
+                                &rarr;
+                                <span class="change-neu">{{ werte.neu or '(leer)' }}</span>
+                            </dd>
+                            {% endfor %}
+                        </dl>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Paginierung -->
+{% if seiten_gesamt > 1 %}
+<div class="pagination">
+    {% if seite > 1 %}
+    <a href="{{ url_for('admin_protokoll', seite=seite-1, entitaet_typ=filter_entitaet, benutzer_id=filter_benutzer, datum_von=filter_von, datum_bis=filter_bis) }}"
+       class="btn btn-sm btn-outline-dark">&laquo; Zur&uuml;ck</a>
+    {% endif %}
+    <span class="pagination-info">Seite {{ seite }} von {{ seiten_gesamt }}</span>
+    {% if seite < seiten_gesamt %}
+    <a href="{{ url_for('admin_protokoll', seite=seite+1, entitaet_typ=filter_entitaet, benutzer_id=filter_benutzer, datum_von=filter_von, datum_bis=filter_bis) }}"
+       class="btn btn-sm btn-outline-dark">Weiter &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">📋</div>
+    <p class="empty-state-text">Keine Protokoll-Eintr&auml;ge gefunden.</p>
+</div>
+{% endif %}
+{% endblock %}

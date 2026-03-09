@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}{{ patient.nachname }}, {{ patient.vorname }} – {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('patienten_liste') }}">Patienten</a>
+    <span class="sep">›</span>
+    <span>{{ patient.nachname }}, {{ patient.vorname }}</span>
+</div>
+
+<div class="page-header">
+    <h1>
+        {{ patient.nachname }}, {{ patient.vorname }}
+        <span class="badge badge-{{ patient.wohnort_typ|lower }}">{{ patient.wohnort_typ }}</span>
+        {% if not patient.aktiv %}<span class="badge badge-inaktiv">INAKTIV</span>{% endif %}
+    </h1>
+    <div class="btn-group">
+        <form method="POST" action="{{ url_for('patient_visite', id=patient.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-success">✅ Visite registrieren</button>
+        </form>
+        <a href="{{ url_for('patient_bearbeiten', id=patient.id) }}" class="btn btn-outline">✏️ Bearbeiten</a>
+    </div>
+</div>
+
+<!-- Patienteninfo -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📋 Patienteninformationen</h3>
+        <div class="btn-group">
+            {% if patient.aktiv %}
+            <form method="POST" action="{{ url_for('patient_deaktivieren', id=patient.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-warning"
+                    onclick="return confirm('Patient deaktivieren?')">Deaktivieren</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('patient_aktivieren', id=patient.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-success">Aktivieren</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="info-grid">
+        <div class="info-item">
+            <span class="info-label">Name</span>
+            <span class="info-value">{{ patient.nachname }}, {{ patient.vorname }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Geburtsdatum</span>
+            <span class="info-value">{{ patient.geburtsdatum|datum if patient.geburtsdatum else '–' }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Wohnort</span>
+            <span class="info-value">
+                {% if patient.wohnort_typ == 'HEIM' %}
+                {{ patient.einrichtung_name|default('–') }} / {{ patient.station_name|default('–') }}
+                {% if patient.einrichtung_adresse %}
+                <span style="font-size:0.8em; color:var(--text-muted); display:block;">{{ patient.einrichtung_adresse }}</span>
+                {% endif %}
+                {% else %}
+                {{ patient.adresse|default('–') }}
+                {% if patient.geocode_status == 'FEHLER' %}
+                <span class="badge" style="background:rgba(239,68,68,0.2); color:var(--danger); font-size:0.75rem; margin-left:0.5rem;">⚠️ Adresse nicht gefunden</span>
+                {% elif patient.adresse and not patient.latitude %}
+                <span class="badge" style="background:rgba(234,179,8,0.2); color:#eab308; font-size:0.75rem; margin-left:0.5rem;">📍 Nicht geocodiert</span>
+                {% endif %}
+                {% endif %}
+            </span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Behandler</span>
+            <span class="info-value">
+                {% if patient.resolved_behandler_id %}
+                <span class="badge" style="background:{{ patient.behandler_farbe }};">
+                    {{ patient.behandler_name }}
+                    {% if not patient.primaer_behandler_id %}
+                    (vererbt)
+                    {% endif %}
+                </span>
+                {% else %}
+                <span class="badge badge-secondary">Kein Behandler</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Intervall</span>
+            <span class="info-value">
+                {% if patient.resolved_intervall_tage %}
+                {{ patient.resolved_intervall_tage }} Tage
+                {% if not patient.intervall_tage %}
+                <span style="font-size:0.8em; color:var(--text-muted);">(vererbt)</span>
+                {% endif %}
+                {% else %}
+                –
+                {% endif %}
+            </span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Besuchsdauer</span>
+            <span class="info-value">{{ patient.besuchsdauer_minuten }} Min.</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Letzter Besuch</span>
+            <span class="info-value">{{ patient.letzter_besuch|zeitstempel if patient.letzter_besuch else '–' }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Geplanter Besuch</span>
+            <span class="info-value">{{ patient.geplanter_besuch|datum if patient.geplanter_besuch else '–' }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- CAVE & Notizen -->
+{% if patient.cave or patient.notizen %}
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+    {% if patient.cave %}
+    <div class="card" style="border-color: var(--danger);">
+        <div class="card-header">
+            <h3 class="card-title" style="color:var(--danger);">⚠️ CAVE</h3>
+        </div>
+        <p style="white-space:pre-wrap; color:var(--text-secondary);">{{ patient.cave }}</p>
+    </div>
+    {% endif %}
+    {% if patient.notizen %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📝 Notizen</h3>
+        </div>
+        <p style="white-space:pre-wrap; color:var(--text-secondary);">{{ patient.notizen }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+
+
+<!-- Impfungen -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">💉 Impfungen</h3>
+        <a href="{{ url_for('impfung_neu', p_id=patient.id) }}" class="btn btn-sm btn-primary">➕ Neue Impfung</a>
+    </div>
+    {% if impfungen %}
+    <div class="table-responsive" style="border:none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Impftyp</th>
+                    <th>Einverständnis</th>
+                    <th>Status</th>
+                    <th>Plan-Datum</th>
+                    <th>Durchführung</th>
+                    <th>Nächste Fälligkeit</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for i in impfungen %}
+                <tr>
+                    <td><strong>{{ i.impftyp }}</strong></td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            {% if i.einverstaendnis_status == 'NICHT_ANGEFRAGT' %}
+                            <span class="badge" style="background:var(--bg-secondary); color:var(--text-muted);">nicht
+                                angefragt</span>
+                            {% elif i.einverstaendnis_status == 'ANGEFRAGT' %}
+                            <span class="badge badge-geplant">angefragt</span>
+                            {% else %}
+                            <span
+                                class="badge badge-{% if 'JA' in i.einverstaendnis_status %}ja{% elif 'NEIN' in i.einverstaendnis_status %}nein{% else %}nachfragen{% endif %}">
+                                {{ i.einverstaendnis_status|einverstaendnis_label }}
+                            </span>
+                            {% endif %}
+
+                            {% if i.dokument_id %}
+                            <a href="{{ url_for('dokument_download', id=i.dokument_id) }}" title="PDF öffnen"
+                                style="text-decoration:none; font-size:1.1rem;">📎</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ i.status|lower }}">{{ i.status }}</span>
+                    </td>
+                    <td>{{ i.plan_datum|datum if i.plan_datum else '–' }}</td>
+                    <td>{{ i.durchfuehrung_datum|datum if i.durchfuehrung_datum else '–' }}</td>
+                    <td>{{ i.naechste_faelligkeit|datum if i.naechste_faelligkeit else '–' }}</td>
+                    <td>
+                        <a href="{{ url_for('impfung_bearbeiten', id=i.id) }}" class="btn btn-sm btn-outline">✏️</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:1.5rem;">
+        <p style="color:var(--text-muted);">Keine Impfungen angelegt.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Dokumente -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📎 Dokumente</h3>
+    </div>
+    {% if dokumente %}
+    <div class="table-responsive" style="border:none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Dateiname</th>
+                    <th>Datum</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in dokumente %}
+                <tr>
+                    <td>{{ d.dateiname }}</td>
+                    <td>{{ d.erstellt_am|zeitstempel }}</td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="{{ url_for('dokument_download', id=d.id) }}" class="btn btn-sm btn-outline">⬇
+                                Download</a>
+                            <form method="POST" action="{{ url_for('dokument_loeschen', id=d.id) }}"
+                                style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger"
+                                    onclick="return confirm('Dokument löschen?')">🗑</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    <form method="POST" action="{{ url_for('dokument_upload') }}" enctype="multipart/form-data"
+        style="display:flex; gap:0.75rem; align-items:end; margin-top:1rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="patient_id" value="{{ patient.id }}">
+        <div class="form-group" style="flex:1; margin-bottom:0;">
+            <label class="form-label">PDF hochladen</label>
+            <input type="file" name="datei" class="form-control" accept=".pdf" required>
+        </div>
+        <button type="submit" class="btn btn-primary">📤 Hochladen</button>
+    </form>
+</div>
+
+<!-- Umziehen (nur Heim-Patienten) -->
+{% if patient.wohnort_typ == 'HEIM' %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">🚚 Umziehen</h3>
+    </div>
+    <form method="POST" action="{{ url_for('patient_umziehen', id=patient.id) }}"
+        style="display:flex; gap:0.75rem; align-items:end;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group" style="flex:1; margin-bottom:0;">
+            <label class="form-label">Neue Station</label>
+            <select name="neue_station_id" class="form-control" required>
+                <option value="">Bitte wählen…</option>
+                {% for s in stationen %}
+                <option value="{{ s.id }}" {% if patient.station_id==s.id %}selected{% endif %}>
+                    {{ s.einrichtung_name }} / {{ s.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-warning" onclick="return confirm('Patient umziehen?')">Umziehen</button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Löschen (Admin) -->
+{% if current_user.is_admin() %}
+<div class="card" style="border-color: var(--danger);">
+    <div class="card-header">
+        <h3 class="card-title" style="color:var(--danger);">🗑️ Gefahrenzone</h3>
+    </div>
+    <form method="POST" action="{{ url_for('patient_loeschen', id=patient.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-danger"
+            onclick="return confirm('Patient ENDGÜLTIG löschen? Alle Daten (Impfungen, Dokumente) gehen verloren!')">
+            Patient endgültig löschen
+        </button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

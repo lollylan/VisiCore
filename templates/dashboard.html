@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📊 Dashboard</h1>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon blue">👥</div>
+        <div>
+            <div class="stat-value">{{ stats.patienten_aktiv }}</div>
+            <div class="stat-label">Aktive Patienten</div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon purple">🏥</div>
+        <div>
+            <div class="stat-value">{{ stats.patienten_heim }}</div>
+            <div class="stat-label">Heimbewohner</div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon blue">🏠</div>
+        <div>
+            <div class="stat-value">{{ stats.patienten_zuhause }}</div>
+            <div class="stat-label">Hausbesuche</div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon yellow">💉</div>
+        <div>
+            <div class="stat-value">{{ stats.impfungen_offen }}</div>
+            <div class="stat-label">Offene Impfungen</div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon red">📅</div>
+        <div>
+            <div class="stat-value">{{ stats.visiten_faellig }}</div>
+            <div class="stat-label">Fällige Visiten</div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon green">🏢</div>
+        <div>
+            <div class="stat-value">{{ stats.einrichtungen }}</div>
+            <div class="stat-label">Einrichtungen</div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon green">🩺</div>
+        <div>
+            <div class="stat-value">{{ stats.behandler }}</div>
+            <div class="stat-label">Behandler</div>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.25rem;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🚀 Schnellzugriff</h3>
+        </div>
+        <div class="btn-group" style="flex-direction: column;">
+            <a href="{{ url_for('patient_neu') }}" class="btn btn-primary">➕ Neuer Patient</a>
+            <a href="{{ url_for('einrichtung_neu') }}" class="btn btn-outline">🏢 Neue Einrichtung</a>
+            <a href="{{ url_for('behandler_neu') }}" class="btn btn-outline">🩺 Neuer Behandler</a>
+            <a href="{{ url_for('patienten_liste', wohnort='ZUHAUSE') }}" class="btn btn-outline">🏠 Hausbesuche
+                anzeigen</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">ℹ️ VisiCore Info</h3>
+        </div>
+        <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.7;">
+            <p><strong>VisiCore</strong> vereint Visitenplanung und Impfmanagement in einer Anwendung.</p>
+            <p style="margin-top: 0.75rem;">
+                <strong>Version:</strong> 1.0.0<br>
+                <strong>Datenbank:</strong> SQLCipher (verschlüsselt)<br>
+                <strong>Patienten:</strong> {{ stats.patienten_aktiv }} aktiv
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

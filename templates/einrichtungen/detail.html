@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}{{ einrichtung.name }} – {{ app_name }}{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('einrichtungen_liste') }}">Einrichtungen</a>
+    <span class="sep">›</span>
+    <span>{{ einrichtung.name }}</span>
+</div>
+<div class="page-header">
+    <h1>🏢 {{ einrichtung.name }}</h1>
+    <div class="btn-group">
+        <a href="{{ url_for('station_neu', e_id=einrichtung.id) }}" class="btn btn-primary">➕ Neue Station</a>
+        <a href="{{ url_for('einrichtung_export_pdf', id=einrichtung.id) }}" class="btn btn-outline">📄 PDF Export</a>
+        <a href="{{ url_for('einrichtung_bearbeiten', id=einrichtung.id) }}" class="btn btn-outline">✏️ Bearbeiten</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="info-grid">
+        <div class="info-item">
+            <span class="info-label">Name</span>
+            <span class="info-value">{{ einrichtung.name }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Adresse</span>
+            <span class="info-value">{{ einrichtung.adresse or '–' }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Standard-Behandler</span>
+            <span class="info-value">
+                {% if einrichtung.standard_behandler_id %}
+                <span class="badge" style="background:{{ einrichtung.standard_behandler_farbe }};">
+                    {{ einrichtung.standard_behandler_name }}
+                </span>
+                {% else %}
+                <span class="badge badge-secondary">Nicht festgelegt</span>
+                {% endif %}
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"
+        style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+        <h3 class="card-title" style="margin:0;">🏥 Stationen & Bewohner</h3>
+        <div class="view-toggles" style="display:flex; gap:0.5rem;">
+            <button class="btn btn-sm btn-primary" id="btn-view-stationen" onclick="switchView('stationen')">Nur
+                Stationen</button>
+            <button class="btn btn-sm btn-outline" id="btn-view-bewohner" onclick="switchView('bewohner')">Mit
+                Bewohnern</button>
+        </div>
+        <a href="{{ url_for('station_neu', e_id=einrichtung.id) }}" class="btn btn-sm btn-primary">➕ Neue Station</a>
+    </div>
+
+    <!-- View 1: Nur Stationen -->
+    <div id="view-stationen">
+        {% if stationen %}
+        <div class="table-responsive" style="border:none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Station</th>
+                        <th>Intervall</th>
+                        <th>Letzter Besuch</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in stationen %}
+                    <tr>
+                        <td><a href="{{ url_for('station_detail', id=s.id) }}" style="font-weight:500;">{{ s.name }}</a>
+                        </td>
+                        <td>{{ s.intervall_tage }} Tage</td>
+                        <td>{{ s.letzter_besuch|zeitstempel if s.letzter_besuch else '–' }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('station_detail', id=s.id) }}"
+                                    class="btn btn-sm btn-outline">Details</a>
+                                <form method="POST" action="{{ url_for('station_visite', id=s.id) }}"
+                                    style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-success"
+                                        onclick="return confirm('Stationsvisite registrieren?')">✅ Visite</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:1.5rem;">
+            <p>Noch keine Stationen.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- View 2: Mit Bewohnern -->
+    <div id="view-bewohner" style="display:none;">
+        {% if stationen_mit_bewohnern %}
+        {% for s_data in stationen_mit_bewohnern %}
+        <div style="padding:1.5rem; border-bottom:1px solid var(--border-color);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h4 style="margin:0; font-size:1.1rem;"><a
+                        href="{{ url_for('station_detail', id=s_data.station.id) }}">{{ s_data.station.name }}</a></h4>
+                <span
+                    style="font-size:0.85rem; color:var(--text-muted); background:var(--bg-secondary); padding:0.2rem 0.5rem; border-radius:12px;">{{
+                    s_data.bewohner|length }} Bewohner</span>
+            </div>
+
+            {% if s_data.bewohner %}
+            <div class="table-responsive"
+                style="margin-top:0.5rem; border:1px solid var(--border-color); border-radius:var(--radius-sm);">
+                <table style="margin:0;">
+                    <thead style="background:var(--bg-secondary);">
+                        <tr>
+                            <th style="width:25%;">Bewohner</th>
+                            <th style="width:35%;">Offene Impfungen</th>
+                            <th style="width:40%;">CAVE / Notizen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in s_data.bewohner %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('patient_detail', id=b.daten.id) }}" style="font-weight:500;">
+                                    {{ b.daten.nachname }}, {{ b.daten.vorname }}
+                                </a>
+                            </td>
+                            <td>
+                                {% if b.impfungen %}
+                                <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                                    {% for impf in b.impfungen %}
+                                    <div style="display:flex; align-items:center; gap:0.25rem;">
+                                        <span class="badge badge-warning"
+                                            style="align-self:flex-start; font-size:0.75rem;">{{ impf.impftyp }} ({{
+                                            impf.status|lower }})</span>
+
+                                        {% if impf.einverstaendnis_status == 'NICHT_ANGEFRAGT' %}
+                                        <span class="badge"
+                                            style="background:var(--bg-secondary); color:var(--text-muted); font-size:0.6rem; padding:0.15rem 0.3rem;">nicht
+                                            angefragt</span>
+                                        {% elif impf.einverstaendnis_status == 'ANGEFRAGT' %}
+                                        <span class="badge badge-geplant" style="font-size:0.6rem; padding:0.15rem 0.3rem;">angefragt</span>
+                                        {% else %}
+                                        <span
+                                            class="badge badge-{% if 'JA' in impf.einverstaendnis_status %}ja{% elif 'NEIN' in impf.einverstaendnis_status %}nein{% else %}nachfragen{% endif %}"
+                                            style="font-size:0.6rem; padding:0.15rem 0.3rem;">
+                                            {{ impf.einverstaendnis_status|einverstaendnis_label }}
+                                        </span>
+                                        {% endif %}
+
+                                        {% if impf.dokument_id %}
+                                        <a href="{{ url_for('dokument_download', id=impf.dokument_id) }}"
+                                            title="PDF Dokument" style="text-decoration:none; font-size:0.9rem;">📎</a>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <span class="badge badge-secondary" style="font-size:0.75rem;">Keine</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if b.daten.cave %}
+                                <div
+                                    style="color:var(--danger); font-size:0.85rem; font-weight:bold; margin-bottom:0.25rem;">
+                                    ⚠️ CAVE: {{ b.daten.cave }}</div>
+                                {% endif %}
+                                {% if b.daten.notizen %}
+                                <div style="color:var(--text-secondary); font-size:0.85rem; white-space:pre-wrap;">{{
+                                    b.daten.notizen }}</div>
+                                {% endif %}
+                                {% if not b.daten.cave and not b.daten.notizen %}
+                                <span style="color:var(--text-muted); font-size:0.85rem;">–</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="font-size:0.9rem; color:var(--text-muted); margin:0;">Diese Station hat derzeit keine Bewohner.
+            </p>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state" style="padding:1.5rem;">
+            <p>Noch keine Stationen.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function switchView(view) {
+        if (view === 'stationen') {
+            document.getElementById('view-stationen').style.display = 'block';
+            document.getElementById('view-bewohner').style.display = 'none';
+            document.getElementById('btn-view-stationen').className = 'btn btn-sm btn-primary';
+            document.getElementById('btn-view-bewohner').className = 'btn btn-sm btn-outline';
+        } else {
+            document.getElementById('view-stationen').style.display = 'none';
+            document.getElementById('view-bewohner').style.display = 'block';
+            document.getElementById('btn-view-stationen').className = 'btn btn-sm btn-outline';
+            document.getElementById('btn-view-bewohner').className = 'btn btn-sm btn-primary';
+        }
+    }
+</script>
+
+{% if current_user.is_admin() %}
+<div class="card" style="border-color:var(--danger);">
+    <div class="card-header">
+        <h3 class="card-title" style="color:var(--danger);">🗑️ Gefahrenzone</h3>
+    </div>
+    <form method="POST" action="{{ url_for('einrichtung_loeschen', id=einrichtung.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-danger"
+            onclick="return confirm('Einrichtung mit ALLEN Stationen und Patienten löschen?')">Einrichtung endgültig
+            löschen</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

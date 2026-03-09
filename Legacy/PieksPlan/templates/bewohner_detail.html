@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}{{ bewohner.nachname }}, {{ bewohner.vorname }} - PieksPlan{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('pflegeheime_liste') }}">Pflegeheime</a>
+    <span>/</span>
+    <a href="{{ url_for('pflegeheim_detail', id=bewohner.pflegeheim_id) }}">{{ bewohner.pflegeheim_name }}</a>
+    <span>/</span>
+    <a href="{{ url_for('wohngruppe_detail', id=bewohner.wohngruppe_id) }}">{{ bewohner.wohngruppe_name }}</a>
+    <span>/</span>
+    <strong>{{ bewohner.nachname }}, {{ bewohner.vorname }}</strong>
+</div>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">{{ bewohner.nachname }}, {{ bewohner.vorname }}</h1>
+        <p class="page-subtitle">
+            {{ bewohner.wohngruppe_name }} &mdash; {{ bewohner.pflegeheim_name }}
+            {% if bewohner.geburtsdatum %}
+            &mdash; Geb: {{ bewohner.geburtsdatum }}
+            {% endif %}
+        </p>
+    </div>
+    <div class="btn-group">
+        <a href="{{ url_for('bewohner_bearbeiten', id=bewohner.id) }}" class="btn btn-outline-dark">Bearbeiten</a>
+        <a href="{{ url_for('impfung_neu', b_id=bewohner.id) }}" class="btn btn-primary">+ Impfung hinzuf&uuml;gen</a>
+    </div>
+</div>
+
+<!-- Impfungen -->
+<div class="card">
+    <h2 class="card-title" style="margin-bottom: var(--space-md);">Impfungen</h2>
+
+    {% if impfungen %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Impfung</th>
+                    <th>Einverst&auml;ndnis</th>
+                    <th>Jahr</th>
+                    <th>Status</th>
+                    <th>Plan-Datum</th>
+                    <th>Durchgef&uuml;hrt</th>
+                    <th>N&auml;chste F&auml;lligkeit</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for imp in impfungen %}
+                <tr
+                    class="{% if imp.einverstaendnis_status == 'NEIN' %}row-abgelehnt{% endif %}{% if imp.status == 'DURCHGEFUEHRT' %} row-durchgefuehrt{% endif %}">
+                    <td>
+                        <strong>{{ imp.impftyp }}</strong>
+                        {% if imp.id in impfung_dokumente %}
+                        <a href="{{ url_for('dokument_download', id=impfung_dokumente[imp.id].id) }}"
+                            target="_blank" title="Einverst&auml;ndnis-Dokument anzeigen"
+                            style="text-decoration:none; margin-left:4px;">&#128206;</a>
+                        {% endif %}
+                        {% if imp.ist_standardimpfung %}
+                        <br><span style="font-size:11px; color:var(--color-text-muted);">Standardimpfung</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if imp.einverstaendnis_status == 'JA' %}
+                        <span class="badge badge-ja">Ja</span>
+                        {% elif imp.einverstaendnis_status == 'JA_JAEHRLICH' %}
+                        <span class="badge badge-ja">Ja (j&auml;hrlich)</span>
+                        {% elif imp.einverstaendnis_status == 'JA_JAEHRLICH_NACHFRAGEN' %}
+                        {% if imp.einverstaendnis_jahr == current_year %}
+                        <span class="badge badge-ja">Ja ({{ current_year }})</span>
+                        {% else %}
+                        <span class="badge badge-offen">Nachfragen!</span>
+                        {% endif %}
+                        {% elif imp.einverstaendnis_status == 'NEIN' %}
+                        <span class="badge badge-nein">Nein, abgelehnt</span>
+                        {% elif imp.einverstaendnis_status == 'NEIN_JAEHRLICH_NACHFRAGEN' %}
+                        <span class="badge badge-offen">Nein, nachfragen</span>
+                        {% else %}
+                        <span class="badge badge-nicht-angefragt">Nicht angefragt</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if imp.einverstaendnis_jahr %}
+                        {% if 'Grippe' in imp.impftyp %}{{ imp.einverstaendnis_jahr | grippe_saison }}{% else %}{{
+                        imp.einverstaendnis_jahr }}{% endif %}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if imp.status == 'OFFEN' %}
+                        <span class="badge badge-offen">Offen</span>
+                        {% elif imp.status == 'GEPLANT' %}
+                        <span class="badge badge-geplant">Geplant</span>
+                        {% elif imp.status == 'DURCHGEFUEHRT' %}
+                        <span class="badge badge-durchgefuehrt">Durchgef&uuml;hrt</span>
+                        {% endif %}
+                    </td>
+                    <td>{% if imp.plan_datum %}{{ imp.plan_datum }}{% else %}-{% endif %}</td>
+                    <td>{% if imp.durchfuehrung_datum %}{{ imp.durchfuehrung_datum }}{% else %}-{% endif %}</td>
+                    <td>{% if imp.naechste_faelligkeit %}{{ imp.naechste_faelligkeit }}{% else %}-{% endif %}</td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="{{ url_for('impfung_bearbeiten', id=imp.id) }}"
+                                class="btn btn-outline-dark btn-sm">Bearbeiten</a>
+                            <form method="POST" action="{{ url_for('impfung_loeschen', id=imp.id) }}"
+                                class="confirm-form" onsubmit="return confirmDelete('Impfung loeschen?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-danger btn-sm">L&ouml;schen</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">💉</div>
+        <p class="empty-state-text">Noch keine Impfungen eingetragen.</p>
+        <a href="{{ url_for('impfung_neu', b_id=bewohner.id) }}" class="btn btn-primary">Erste Impfung
+            hinzuf&uuml;gen</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Bewohner-Dokumente -->
+<div class="card">
+    <h2 class="card-title" style="margin-bottom: var(--space-md);">Dokumente</h2>
+
+    {% if bewohner_dokumente %}
+    <div class="table-wrapper" style="margin-bottom: var(--space-md);">
+        <table>
+            <thead>
+                <tr>
+                    <th>Dateiname</th>
+                    <th>Hochgeladen</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dok in bewohner_dokumente %}
+                <tr>
+                    <td>{{ dok.dateiname }}</td>
+                    <td>{{ dok.erstellt_am[:10] if dok.erstellt_am else '-' }}</td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="{{ url_for('dokument_download', id=dok.id) }}"
+                                class="btn btn-outline-dark btn-sm" target="_blank">Anzeigen</a>
+                            <form method="POST" action="{{ url_for('dokument_loeschen', id=dok.id) }}"
+                                style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-danger btn-sm"
+                                    onclick="return confirm('Dokument wirklich loeschen?')">L&ouml;schen</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('dokument_upload') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="bewohner_id" value="{{ bewohner.id }}">
+        <div style="display: flex; gap: var(--space-md); align-items: end;">
+            <div class="form-group" style="flex:1; margin-bottom:0;">
+                <label class="form-label" for="datei_bewohner">PDF hochladen (z.B. Vollmacht, Patientenverf&uuml;gung)</label>
+                <input type="file" id="datei_bewohner" name="datei" class="form-input" accept=".pdf" required>
+                <p class="form-hint">Nur PDF, max. 5 MB</p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Hochladen</button>
+        </div>
+    </form>
+</div>
+
+<!-- Umzug -->
+<div class="card">
+    <h2 class="card-title" style="margin-bottom: var(--space-md);">Bewohner umziehen</h2>
+    <form method="POST" action="{{ url_for('bewohner_umziehen', id=bewohner.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display: flex; gap: var(--space-md); align-items: end;">
+            <div class="form-group" style="flex:1; margin-bottom:0;">
+                <label class="form-label" for="neue_wohngruppe_id">Neue Wohngruppe</label>
+                <select id="neue_wohngruppe_id" name="neue_wohngruppe_id" class="form-select">
+                    {% for wg in alle_wohngruppen %}
+                    {% if wg.id != bewohner.wohngruppe_id %}
+                    <option value="{{ wg.id }}">{{ wg.pflegeheim_name }} &rarr; {{ wg.name }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary"
+                onclick="return confirm('Bewohner wirklich umziehen?')">Umziehen</button>
+        </div>
+    </form>
+</div>
+
+<!-- Deaktivieren -->
+<div style="margin-top: var(--space-lg);">
+    <form method="POST" action="{{ url_for('bewohner_deaktivieren', id=bewohner.id) }}" class="confirm-form"
+        onsubmit="return confirmDelete('Bewohner deaktivieren? Der Bewohner kann spaeter reaktiviert werden.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-danger btn-sm">Bewohner deaktivieren</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'dark';</script>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login – VisiCore</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="logo">
+                <h1>⚕️ VisiCore</h1>
+                <p>Visitenplanung &amp; Impfmanagement</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}"
+                style="margin-bottom:1rem; border-radius:var(--radius-sm); padding:0.6rem 1rem; font-size:0.85rem;">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('login') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="form-group">
+                    <label class="form-label" for="benutzername">Benutzername</label>
+                    <input type="text" id="benutzername" name="benutzername" class="form-control" required autofocus
+                        autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="passwort">Passwort</label>
+                    <input type="password" id="passwort" name="passwort" class="form-control" required
+                        autocomplete="current-password">
+                </div>
+
+                <button type="submit" class="btn btn-primary"
+                    style="width:100%; justify-content:center; margin-top:0.5rem;">
+                    Anmelden
+                </button>
+            </form>
+
+            <p style="text-align:center; margin-top:1.5rem; font-size:0.75rem; color:var(--text-muted);">
+                Erster Login? Standard: admin / admin
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>

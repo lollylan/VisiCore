@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Protokoll – {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>📋 Aktivitätsprotokoll</h1>
+    <span style="color:var(--text-muted); font-size:0.85rem;">{{ gesamt }} Einträge</span>
+</div>
+
+<div style="margin-bottom:1rem;">
+    <form method="GET" style="display:flex; gap:0.5rem; align-items:center;">
+        <select name="typ" class="form-control" style="width:auto;">
+            <option value="">Alle Typen</option>
+            {% for t in ['Patient', 'Einrichtung', 'Station', 'Impfung', 'Behandler', 'Benutzer', 'Dokument', 'Backup']
+            %}
+            <option value="{{ t }}" {% if typ==t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-outline">Filtern</button>
+    </form>
+</div>
+
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>Zeitpunkt</th>
+                <th>Benutzer</th>
+                <th>Aktion</th>
+                <th>Typ</th>
+                <th>Bezeichnung</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in eintraege %}
+            <tr>
+                <td style="white-space:nowrap;">{{ e.zeitpunkt|zeitstempel }}</td>
+                <td>{{ e.benutzer_name }}</td>
+                <td><span class="badge badge-offen">{{ e.aktion }}</span></td>
+                <td>{{ e.entitaet_typ }}</td>
+                <td>{{ e.entitaet_bezeichnung or '–' }}</td>
+                <td
+                    style="max-width:200px; overflow:hidden; text-overflow:ellipsis; font-size:0.78rem; color:var(--text-muted);">
+                    {{ e.aenderungen[:100] if e.aenderungen else '–' }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if seiten > 1 %}
+<div class="pagination">
+    {% if seite > 1 %}
+    <a href="?seite={{ seite - 1 }}&typ={{ typ }}">← Zurück</a>
+    {% endif %}
+    <span class="active">{{ seite }} / {{ seiten }}</span>
+    {% if seite < seiten %} <a href="?seite={{ seite + 1 }}&typ={{ typ }}">Weiter →</a>
+        {% endif %}
+</div>
+{% endif %}
+{% endblock %}

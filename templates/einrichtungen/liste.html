@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Einrichtungen – {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>🏢 Einrichtungen</h1>
+    <a href="{{ url_for('einrichtung_neu') }}" class="btn btn-primary">➕ Neue Einrichtung</a>
+</div>
+{% if einrichtungen %}
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Adresse</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in einrichtungen %}
+            <tr>
+                <td><a href="{{ url_for('einrichtung_detail', id=e.id) }}" style="font-weight:500;">{{ e.name }}</a>
+                </td>
+                <td>{{ e.adresse or '–' }}</td>
+                <td><a href="{{ url_for('einrichtung_detail', id=e.id) }}" class="btn btn-sm btn-outline">Details</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">🏢</div>
+    <p>Noch keine Einrichtungen angelegt.</p>
+    <a href="{{ url_for('einrichtung_neu') }}" class="btn btn-primary">➕ Erste Einrichtung anlegen</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Login - PieksPlan{% endblock %}
+{% block body_class %}login-body{% endblock %}
+
+{% block content %}
+<div class="login-card">
+    <div class="login-icon">💉</div>
+    <h1 class="login-title">PieksPlan</h1>
+    <p class="login-subtitle">Impfplanung f&uuml;r Pflegeheime</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="flash flash-{{ category }}">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label class="form-label" for="benutzername">Benutzername</label>
+            <input type="text" id="benutzername" name="benutzername" class="form-input" required autofocus
+                placeholder="Benutzername eingeben">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="passwort">Passwort</label>
+            <input type="password" id="passwort" name="passwort" class="form-input" required
+                placeholder="Passwort eingeben">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%; justify-content: center; padding: 12px;">
+            Anmelden
+        </button>
+    </form>
+
+    <p style="margin-top: 20px; font-size: 11px; color: #999; text-align: center;">
+        PieksPlan ist eine Verwaltungs- und Planungshilfe.
+        Kein Medizinprodukt &ndash; ersetzt keine &auml;rztliche Pr&uuml;fung.
+    </p>
+</div>
+{% endblock %}

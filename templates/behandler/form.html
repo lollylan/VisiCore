@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{% if behandler %}Behandler bearbeiten{% else %}Neuer Behandler{% endif %} – {{ app_name }}{% endblock
+%}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('behandler_liste') }}">Behandler</a>
+    <span class="sep">›</span>
+    <span>{% if behandler %}Bearbeiten{% else %}Neu{% endif %}</span>
+</div>
+<div class="page-header">
+    <h1>{% if behandler %}✏️ Behandler bearbeiten{% else %}➕ Neuer Behandler{% endif %}</h1>
+</div>
+<div class="card">
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="name">Name *</label>
+                <input type="text" id="name" name="name" class="form-control" required
+                    value="{{ behandler.name if behandler else '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="rolle">Rolle</label>
+                <select id="rolle" name="rolle" class="form-control">
+                    <option value="">Bitte wählen…</option>
+                    {% for r in ['Arzt', 'VERAH', 'PCM', 'MFA', 'Praxismanager'] %}
+                    <option value="{{ r }}" {% if behandler and behandler.rolle==r %}selected{% endif %}>{{ r }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="farbe">Farbe (für Routenansicht)</label>
+                <input type="color" id="farbe" name="farbe" class="form-control" style="height:42px; padding:4px;"
+                    value="{{ behandler.farbe if behandler else '#33656E' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="max_taegliche_minuten">Max. Minuten pro Tag</label>
+                <input type="number" id="max_taegliche_minuten" name="max_taegliche_minuten" class="form-control"
+                    min="30" value="{{ behandler.max_taegliche_minuten if behandler else '240' }}">
+            </div>
+        </div>
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+            <a href="{{ url_for('behandler_liste') }}" class="btn btn-outline">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

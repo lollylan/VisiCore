@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{% if station %}Station bearbeiten{% else %}Neue Station{% endif %} – {{ app_name }}{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('einrichtungen_liste') }}">Einrichtungen</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('einrichtung_detail', id=einrichtung.id) }}">{{ einrichtung.name }}</a>
+    <span class="sep">›</span>
+    <span>{% if station %}Station bearbeiten{% else %}Neue Station{% endif %}</span>
+</div>
+<div class="page-header">
+    <h1>{% if station %}✏️ Station bearbeiten{% else %}➕ Neue Station{% endif %}</h1>
+</div>
+<div class="card">
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="name">Name *</label>
+                <input type="text" id="name" name="name" class="form-control" required
+                    value="{{ station.name if station else '' }}" placeholder="z.B. Wohngruppe Erdgeschoss">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="intervall_tage">Besuchsintervall (Tage)</label>
+                <input type="number" id="intervall_tage" name="intervall_tage" class="form-control" min="1"
+                    value="{{ station.intervall_tage if station else '28' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="standard_behandler_id">Standard-Behandler (Optional)</label>
+                <select id="standard_behandler_id" name="standard_behandler_id" class="form-control">
+                    <option value="">Keiner (Oder von Einrichtung)</option>
+                    {% for b in behandler %}
+                    <option value="{{ b.id }}" {% if station and station.standard_behandler_id==b.id %}selected{% endif
+                        %}>
+                        {{ b.name }} ({{ b.rolle or 'Arzt' }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="letzter_besuch">Letzter Besuch</label>
+                <input type="date" id="letzter_besuch" name="letzter_besuch" class="form-control"
+                    value="{{ station.letzter_besuch[:10] if station and station.letzter_besuch else '' }}">
+            </div>
+        </div>
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+            <a href="{{ url_for('einrichtung_detail', id=einrichtung.id) }}" class="btn btn-outline">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

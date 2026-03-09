@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Bewohner bearbeiten' if bewohner else 'Neuer Bewohner' }} - PieksPlan{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('pflegeheime_liste') }}">Pflegeheime</a>
+    <span>/</span>
+    <a href="{{ url_for('wohngruppe_detail', id=wohngruppe.id) }}">{{ wohngruppe.name }}</a>
+    <span>/</span>
+    <strong>{{ 'Bearbeiten' if bewohner else 'Neuer Bewohner' }}</strong>
+</div>
+
+<div class="card" style="max-width: 600px;">
+    <h2 class="card-title" style="margin-bottom: var(--space-lg);">
+        {{ 'Bewohner bearbeiten' if bewohner else 'Neuen Bewohner anlegen' }}
+    </h2>
+
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label class="form-label" for="nachname">Nachname *</label>
+            <input type="text" id="nachname" name="nachname" class="form-input" required
+                value="{{ bewohner.nachname if bewohner else '' }}" placeholder="Nachname">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="vorname">Vorname *</label>
+            <input type="text" id="vorname" name="vorname" class="form-input" required
+                value="{{ bewohner.vorname if bewohner else '' }}" placeholder="Vorname">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="geburtsdatum">Geburtsdatum (optional)</label>
+            <input type="date" id="geburtsdatum" name="geburtsdatum" class="form-input"
+                value="{{ bewohner.geburtsdatum if bewohner and bewohner.geburtsdatum else '' }}">
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">
+                {{ 'Speichern' if bewohner else 'Anlegen' }}
+            </button>
+            <a href="{{ url_for('wohngruppe_detail', id=wohngruppe.id) }}" class="btn btn-outline-dark">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

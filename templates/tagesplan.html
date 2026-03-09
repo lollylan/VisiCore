@@ -1,0 +1,611 @@
+{% extends "base.html" %}
+{% block title %}Tagesplan – {{ app_name }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🗓️ Tagesplan</h1>
+    <div class="btn-group">
+        <form method="GET" id="tagesplan-form" style="display:flex; gap:0.5rem; align-items:center;">
+            <input type="date" name="datum" class="form-control" style="width:auto;" value="{{ datum }}">
+            {% for bid, modus in transportmodi.items() %}
+            <input type="hidden" name="tm_{{ bid }}" value="{{ modus }}" class="tm-hidden">
+            {% endfor %}
+            <button type="submit" class="btn btn-outline">Anzeigen</button>
+        </form>
+        <a href="{{ url_for('tagesplan_pdf', datum=datum) }}" class="btn btn-primary" id="pdf-export-link">📄 PDF Export</a>
+    </div>
+</div>
+
+<!-- Zusammenfassung -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon blue">🏠</div>
+        <div>
+            <div class="stat-value">{{ plan.gesamt_patienten }}</div>
+            <div class="stat-label">Fällige Hausbesuche</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon yellow">🏥</div>
+        <div>
+            <div class="stat-value">{{ plan.faellige_stationen_count }}</div>
+            <div class="stat-label">Fällige Stationen</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon purple">🩺</div>
+        <div>
+            <div class="stat-value">{{ plan.routen|length }}</div>
+            <div class="stat-label">Behandler-Routen</div>
+        </div>
+    </div>
+    <div class="stat-card" {% if plan.ohne_zuordnung %}style="border-left:3px solid #e67e22;"{% endif %}>
+        <div class="stat-icon yellow">⚠️</div>
+        <div>
+            <div class="stat-value" {% if plan.ohne_zuordnung %}style="color:#e67e22;"{% endif %}>
+                {{ plan.ohne_zuordnung.besuche|length if plan.ohne_zuordnung else 0 }}
+            </div>
+            <div class="stat-label">Ohne Zuordnung</div>
+        </div>
+    </div>
+</div>
+
+{% if plan.ausserhalb_radius and plan.ausserhalb_radius > 0 %}
+<div class="card" style="border-left: 4px solid var(--warning); background: var(--bg-secondary);">
+    <p style="margin:0; font-size:0.9rem;">
+        ⚠️ <strong>{{ plan.ausserhalb_radius }}</strong> Patient{{ 'en' if plan.ausserhalb_radius != 1 }} liegt{{ 'en' if plan.ausserhalb_radius != 1 else '' }} außerhalb des
+        eingestellten Radius und wurde{{ 'n' if plan.ausserhalb_radius != 1 }} nach <strong>"Ohne Zuordnung"</strong> verschoben.
+    </p>
+</div>
+{% endif %}
+
+<!-- Ohne Zuordnung -->
+{% if plan.ohne_zuordnung %}
+<div class="card" style="border-left:4px solid #e67e22;">
+    <div class="card-header">
+        <h3 class="card-title" style="color:#e67e22;">
+            ⚠️ Ohne Behandler-Zuordnung
+            <span style="font-weight:normal; font-size:0.85rem; color:var(--text-muted); margin-left:0.5rem;">
+                {{ plan.ohne_zuordnung.besuche|length }} Stopp{{ 's' if plan.ohne_zuordnung.besuche|length != 1 }}
+            </span>
+        </h3>
+        <div class="btn-group">
+            {% if plan.ohne_zuordnung.maps_url %}
+            <a href="{{ plan.ohne_zuordnung.maps_url }}" target="_blank" class="btn btn-sm btn-outline">🗺️ Google Maps</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="table-responsive" style="border:none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Typ</th>
+                    <th>Ziel / Name</th>
+                    <th>Adresse</th>
+                    <th>CAVE / Info</th>
+                    <th>Dauer</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in plan.ohne_zuordnung.besuche %}
+                <tr>
+                    <td style="text-align:center; font-weight:600; color:var(--accent);">{{ loop.index }}</td>
+                    <td style="font-size:1.2rem; text-align:center;">
+                        {% if b._typ == 'P' %}🏠{% else %}🏥{% endif %}
+                    </td>
+                    <td>
+                        {% if b._typ == 'P' %}
+                        <a href="{{ url_for('patient_detail', id=b.id) }}" style="font-weight:500;">
+                            {{ b.nachname }}, {{ b.vorname }}
+                        </a>
+                        {% else %}
+                        <a href="{{ url_for('station_detail', id=b.id) }}" style="font-weight:600;">
+                            {{ b.einrichtung_name }} / {{ b.name }}
+                        </a>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:0.85rem; color:var(--text-secondary);">{{ b.adresse or '–' }}</td>
+                    <td>
+                        {% if b._typ == 'P' %}
+                        {% if b.cave %}<span style="color:var(--danger); font-size:0.85rem;">⚠️ {{ b.cave[:25] }}{% if b.cave|length > 25 %}…{% endif %}</span>
+                        {% else %}–{% endif %}
+                        {% else %}
+                        <span style="font-size:0.85rem; color:var(--text-muted);">Stationsvisite</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ b.besuchsdauer_minuten }} Min.</td>
+                    <td style="white-space:nowrap;">
+                        {% if b._typ == 'P' %}
+                        <form method="POST" action="{{ url_for('patient_visite', id=b.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Besuch registrieren?')">✅</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-outline"
+                            onclick="toggleBehandlerForm('bw-{{ b.id }}')" title="Behandler wechseln">🧑‍⚕️</button>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('station_visite', id=b.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Stationsvisite registrieren?')">✅</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-outline"
+                            onclick="toggleBehandlerForm('bw-s{{ b.id }}')" title="Behandler wechseln">🧑‍⚕️</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if b._typ == 'P' %}
+                <tr id="bw-{{ b.id }}" style="display:none; background:var(--bg-secondary);">
+                    <td colspan="7" style="padding:0.6rem 1rem;">
+                        <form method="POST" action="{{ url_for('tagesplan_behandler_wechseln') }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="entitaet" value="patient">
+                            <input type="hidden" name="entitaet_id" value="{{ b.id }}">
+                            <input type="hidden" name="datum" value="{{ datum }}">
+                            {% for bid, modus in transportmodi.items() %}
+                            <input type="hidden" name="tm_{{ bid }}" value="{{ modus }}">
+                            {% endfor %}
+                            <span style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">🧑‍⚕️ Behandler wechseln:</span>
+                            <select name="behandler_id" class="form-control" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;">
+                                <option value="">– Ohne Zuordnung –</option>
+                                {% for beh in alle_behandler %}
+                                <option value="{{ beh.id }}"
+                                    {% if beh.id == (b.override_behandler_id or b.primaer_behandler_id) %}selected{% endif %}>
+                                    {{ beh.name }}{% if beh.rolle %} ({{ beh.rolle }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <select name="typ" class="form-control" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;">
+                                <option value="einmalig">Einmalig (heute)</option>
+                                <option value="generell">Dauerhaft</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Speichern</button>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                onclick="toggleBehandlerForm('bw-{{ b.id }}')">Abbrechen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endif %}
+                {% if b._typ == 'S' %}
+                <tr id="bw-s{{ b.id }}" style="display:none; background:var(--bg-secondary);">
+                    <td colspan="7" style="padding:0.6rem 1rem;">
+                        <form method="POST" action="{{ url_for('tagesplan_behandler_wechseln') }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="entitaet" value="station">
+                            <input type="hidden" name="entitaet_id" value="{{ b.id }}">
+                            <input type="hidden" name="datum" value="{{ datum }}">
+                            {% for bid, modus in transportmodi.items() %}
+                            <input type="hidden" name="tm_{{ bid }}" value="{{ modus }}">
+                            {% endfor %}
+                            <span style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">&#x1F9D1;&#x200D;&#x2695;&#xFE0F; Behandler wechseln:</span>
+                            <select name="behandler_id" class="form-control" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;">
+                                <option value="">&ndash; Ohne Zuordnung &ndash;</option>
+                                {% for beh in alle_behandler %}
+                                <option value="{{ beh.id }}"
+                                    {% if beh.id == b.override_behandler_id or (not b.override_behandler_id and beh.id == b.standard_behandler_id) %}selected{% endif %}>
+                                    {{ beh.name }}{% if beh.rolle %} ({{ beh.rolle }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <select name="typ" class="form-control" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;">
+                                <option value="einmalig">Einmalig (heute)</option>
+                                <option value="generell">Dauerhaft</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Speichern</button>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                onclick="toggleBehandlerForm('bw-s{{ b.id }}')">Abbrechen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Routenkarte -->
+{% if plan.routen %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Routenübersicht</h3>
+    </div>
+    <div id="routenmap" style="height:450px; border-radius:8px; z-index:0;"></div>
+</div>
+{% endif %}
+
+<!-- Routen pro Behandler -->
+{% if plan.routen %}
+{% for route in plan.routen %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <span class="color-swatch" style="background:{{ route.behandler.farbe }};"></span>
+            {{ route.behandler.name }}
+            <span style="font-weight:normal; font-size:0.85rem; color:var(--text-muted); margin-left:0.5rem;">
+                {{ route.besuche|length }} Stopps
+            </span>
+        </h3>
+        <div class="btn-group" style="align-items:center;">
+            {% if route.behandler.id %}
+            <select class="form-control tm-select" data-bid="{{ route.behandler.id }}" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;">
+                <option value="auto" {{ 'selected' if route.transportmodus == 'auto' }}>🚗 Auto</option>
+                <option value="fahrrad" {{ 'selected' if route.transportmodus == 'fahrrad' }}>🚲 Fahrrad</option>
+                <option value="fuss" {{ 'selected' if route.transportmodus == 'fuss' }}>🚶 Zu Fuß</option>
+            </select>
+            {% endif %}
+            {% if route.maps_url %}
+            <a href="{{ route.maps_url }}" target="_blank" class="btn btn-sm btn-outline">🗺️ Google Maps</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if route.radius_km %}
+    <div style="margin-bottom:0.75rem; font-size:0.85rem; color:var(--text-secondary);">
+        📏 Radius: {{ route.radius_km }} km
+        ({% if route.transportmodus == 'fuss' %}Zu Fuß{% else %}Fahrrad{% endif %})
+    </div>
+    {% endif %}
+
+    <!-- Statistiken -->
+    <div style="display:flex; gap:2rem; margin-bottom:1rem; font-size:0.85rem; color:var(--text-secondary);">
+        <span>{% if route.transportmodus == 'fuss' %}🚶{% elif route.transportmodus == 'fahrrad' %}🚲{% else %}🚗{% endif %} ~{{ route.stats.gesamt_fahrzeit_min }} Min. Fahrzeit</span>
+        <span>🏠 ~{{ route.stats.gesamt_besuchszeit_min }} Min. Aufenthalt</span>
+        <span>⏱️ ~{{ route.stats.gesamt_zeit_min }} Min. gesamt</span>
+        <span>📏 ~{{ route.stats.gesamt_distanz_km }} km</span>
+    </div>
+
+    {% if route.besuche %}
+    <div class="table-responsive" style="border:none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Typ</th>
+                    <th>Ziel / Name</th>
+                    <th>Adresse</th>
+                    <th>CAVE / Info</th>
+                    <th>Dauer</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in route.besuche %}
+                <tr>
+                    <td style="text-align:center; font-weight:600; color:var(--accent);">{{ loop.index }}</td>
+                    <td style="font-size: 1.2rem; text-align: center;">
+                        {% if b._typ == 'P' %}🏠{% else %}🏥{% endif %}
+                    </td>
+                    <td>
+                        {% if b._typ == 'P' %}
+                        <a href="{{ url_for('patient_detail', id=b.id) }}" style="font-weight:500;">
+                            {{ b.nachname }}, {{ b.vorname }}
+                        </a>
+                        {% if b.override_behandler_id %}
+                        <span title="Einmaliger Behandlerwechsel aktiv" style="margin-left:0.3rem; font-size:0.75rem; background:var(--warning); color:#fff; padding:1px 5px; border-radius:3px;">Vertreter</span>
+                        {% endif %}
+                        {% else %}
+                        <a href="{{ url_for('station_detail', id=b.id) }}" style="font-weight:600;">
+                            {{ b.einrichtung_name }} / {{ b.name }}
+                        </a>
+                        {% if b.override_behandler_id %}
+                        <span title="Einmaliger Behandlerwechsel aktiv" style="margin-left:0.3rem; font-size:0.75rem; background:var(--warning); color:#fff; padding:1px 5px; border-radius:3px;">Vertreter</span>
+                        {% endif %}
+                        {% endif %}
+                    </td>
+                    <td style="font-size:0.85rem; color:var(--text-secondary);">
+                        {{ b.adresse or '–' }}
+                    </td>
+                    <td>
+                        {% if b._typ == 'P' %}
+                        {% if b.cave %}
+                        <span style="color:var(--danger); font-size:0.85rem;">⚠️ {{ b.cave[:25] }}{% if b.cave|length >
+                            25 %}…{% endif %}</span>
+                        {% else %}–{% endif %}
+                        {% else %}
+                        <span style="font-size:0.85rem; color:var(--text-muted);">Stationsvisite</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ b.besuchsdauer_minuten }} Min.</td>
+                    <td style="white-space:nowrap;">
+                        {% if b._typ == 'P' %}
+                        <form method="POST" action="{{ url_for('patient_visite', id=b.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-success"
+                                onclick="return confirm('Besuch registrieren?')">✅</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-outline"
+                            onclick="toggleBehandlerForm('bw-{{ b.id }}')"
+                            title="Behandler wechseln">🧑‍⚕️</button>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('station_visite', id=b.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-success"
+                                onclick="return confirm('Stationsvisite registrieren?')">✅</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-outline"
+                            onclick="toggleBehandlerForm('bw-s{{ b.id }}')"
+                            title="Behandler wechseln">🧑‍⚕️</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if b._typ == 'P' %}
+                <tr id="bw-{{ b.id }}" style="display:none; background:var(--bg-secondary);">
+                    <td colspan="7" style="padding:0.6rem 1rem;">
+                        <form method="POST" action="{{ url_for('tagesplan_behandler_wechseln') }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="entitaet" value="patient">
+                            <input type="hidden" name="entitaet_id" value="{{ b.id }}">
+                            <input type="hidden" name="datum" value="{{ datum }}">
+                            {% for bid, modus in transportmodi.items() %}
+                            <input type="hidden" name="tm_{{ bid }}" value="{{ modus }}">
+                            {% endfor %}
+                            <span style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">🧑‍⚕️ Behandler wechseln:</span>
+                            <select name="behandler_id" class="form-control" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;">
+                                <option value="">– Ohne Zuordnung –</option>
+                                {% for beh in alle_behandler %}
+                                <option value="{{ beh.id }}"
+                                    {% if beh.id == (b.override_behandler_id or b.primaer_behandler_id) %}selected{% endif %}>
+                                    {{ beh.name }}{% if beh.rolle %} ({{ beh.rolle }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <select name="typ" class="form-control" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;">
+                                <option value="einmalig">Einmalig (heute)</option>
+                                <option value="generell">Dauerhaft</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Speichern</button>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                onclick="toggleBehandlerForm('bw-{{ b.id }}')">Abbrechen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endif %}
+                {% if b._typ == 'S' %}
+                <tr id="bw-s{{ b.id }}" style="display:none; background:var(--bg-secondary);">
+                    <td colspan="7" style="padding:0.6rem 1rem;">
+                        <form method="POST" action="{{ url_for('tagesplan_behandler_wechseln') }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="entitaet" value="station">
+                            <input type="hidden" name="entitaet_id" value="{{ b.id }}">
+                            <input type="hidden" name="datum" value="{{ datum }}">
+                            {% for bid, modus in transportmodi.items() %}
+                            <input type="hidden" name="tm_{{ bid }}" value="{{ modus }}">
+                            {% endfor %}
+                            <span style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">&#x1F9D1;&#x200D;&#x2695;&#xFE0F; Behandler wechseln:</span>
+                            <select name="behandler_id" class="form-control" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;">
+                                <option value="">&ndash; Ohne Zuordnung &ndash;</option>
+                                {% for beh in alle_behandler %}
+                                <option value="{{ beh.id }}"
+                                    {% if beh.id == b.override_behandler_id or (not b.override_behandler_id and beh.id == b.standard_behandler_id) %}selected{% endif %}>
+                                    {{ beh.name }}{% if beh.rolle %} ({{ beh.rolle }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <select name="typ" class="form-control" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;">
+                                <option value="einmalig">Einmalig (heute)</option>
+                                <option value="generell">Dauerhaft</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Speichern</button>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                onclick="toggleBehandlerForm('bw-s{{ b.id }}')">Abbrechen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">🗓️</div>
+    <p>Keine fälligen Besuche für diesen Tag.</p>
+</div>
+{% endif %}
+
+<!-- Geocoding -->
+{% if current_user.is_admin() %}
+<div class="card" style="border: 1px dashed var(--border-color);">
+    <div class="card-header">
+        <h3 class="card-title">📍 Geocoding</h3>
+    </div>
+    <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:1rem;">
+        Geokodiert alle Patienten-Adressen ohne Koordinaten für die Routenoptimierung.
+    </p>
+    <button onclick="batchGeocode()" class="btn btn-outline" id="geocode-btn">
+        📍 Alle Adressen geokodieren
+    </button>
+    <span id="geocode-result" style="margin-left:1rem; font-size:0.85rem; color:var(--text-secondary);"></span>
+</div>
+{% endif %}
+
+<script>
+    // ── Routenkarte ──
+    {% if plan.routen %}
+    (function() {
+        const praxis = [{{ plan.praxis_coords[0] }}, {{ plan.praxis_coords[1] }}];
+        const map = L.map('routenmap').setView(praxis, 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Praxis-Marker
+        const praxisIcon = L.divIcon({
+            html: '<div style="background:#fff;width:14px;height:14px;border-radius:50%;border:3px solid #5b7fff;box-shadow:0 0 6px rgba(91,127,255,0.6);"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+            className: ''
+        });
+        L.marker(praxis, {icon: praxisIcon})
+         .bindPopup('<strong>Praxis</strong>')
+         .addTo(map);
+
+        // Radius-Kreise pro Behandler
+        {% for route in plan.routen %}
+        {% if route.radius_km %}
+        L.circle(praxis, {
+            radius: {{ route.radius_km }} * 1000,
+            color: '{{ route.behandler.farbe }}',
+            fillColor: '{{ route.behandler.farbe }}',
+            fillOpacity: 0.04,
+            weight: 2,
+            dashArray: '6, 4'
+        }).bindPopup('{{ route.behandler.name }}: {{ route.radius_km }} km ({% if route.transportmodus == "fuss" %}Zu Fuß{% else %}Fahrrad{% endif %})').addTo(map);
+        {% endif %}
+        {% endfor %}
+
+        const bounds = L.latLngBounds([praxis]);
+        const routen = [
+            {% for route in plan.routen %}
+            {
+                farbe: '{{ route.behandler.farbe }}',
+                name: '{{ route.behandler.name }}',
+                stopps: [
+                    {% for b in route.besuche %}
+                    {% if b.latitude and b.longitude %}
+                    {
+                        lat: {{ b.latitude }},
+                        lng: {{ b.longitude }},
+                        name: '{{ (b.nachname ~ ", " ~ b.vorname) if b._typ == "P" else (b.einrichtung_name ~ " / " ~ b.name) }}'.replace(/&#?\w+;/g, ''),
+                        adresse: '{{ b.adresse|default("", true) }}'.replace(/&#?\w+;/g, ''),
+                        typ: '{{ b._typ }}',
+                        nr: {{ loop.index }}
+                    },
+                    {% endif %}
+                    {% endfor %}
+                ]
+            },
+            {% endfor %}
+        ];
+
+        routen.forEach(function(r) {
+            if (r.stopps.length === 0) return;
+
+            // Polyline: Praxis → Stopps → Praxis
+            const coords = [praxis];
+            r.stopps.forEach(function(s) {
+                coords.push([s.lat, s.lng]);
+                bounds.extend([s.lat, s.lng]);
+            });
+            coords.push(praxis);
+
+            L.polyline(coords, {
+                color: r.farbe,
+                weight: 3,
+                opacity: 0.8
+            }).addTo(map);
+
+            // Stopp-Marker
+            r.stopps.forEach(function(s) {
+                const icon = L.divIcon({
+                    html: '<div style="background:' + r.farbe + ';width:10px;height:10px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
+                    iconSize: [10, 10],
+                    iconAnchor: [5, 5],
+                    className: ''
+                });
+                const typLabel = s.typ === 'P' ? 'Hausbesuch' : 'Stationsvisite';
+                L.marker([s.lat, s.lng], {icon: icon})
+                 .bindPopup(
+                    '<strong>' + r.name + '</strong> – Stopp ' + s.nr +
+                    '<br>' + s.name +
+                    '<br><span style="color:#999;">' + s.adresse + '</span>' +
+                    '<br><span style="font-size:0.85em;">' + typLabel + '</span>'
+                 )
+                 .addTo(map);
+            });
+        });
+
+        map.fitBounds(bounds, {padding: [30, 30]});
+    })();
+    {% endif %}
+
+    // ── Behandler-Wechsel Toggle ──
+    function toggleBWR(patientId) {
+        const row = document.getElementById('bwr-' + patientId);
+        if (row) {
+            row.style.display = row.style.display === 'none' ? '' : 'none';
+        }
+    }
+
+    // ── Behandlerwechsel-Formular ein-/ausblenden ──
+    function toggleBehandlerForm(rowId) {
+        const row = document.getElementById(rowId);
+        if (row) {
+            row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
+    }
+
+    // ── Transportmodus-Dropdown pro Behandler ──
+    document.querySelectorAll('.tm-select').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+            const form = document.getElementById('tagesplan-form');
+            const bid = this.dataset.bid;
+            const val = this.value;
+            // Vorhandenes Hidden-Field aktualisieren oder erstellen
+            let hidden = form.querySelector('input[name="tm_' + bid + '"]');
+            if (!hidden) {
+                hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'tm_' + bid;
+                hidden.className = 'tm-hidden';
+                form.appendChild(hidden);
+            }
+            hidden.value = val;
+            // Auto = Standard, muss nicht als Parameter mitgegeben werden
+            if (val === 'auto') {
+                hidden.remove();
+            }
+            form.submit();
+        });
+    });
+
+    // PDF-Export-Link mit aktuellen Transportmodi
+    (function() {
+        const pdfLink = document.getElementById('pdf-export-link');
+        if (pdfLink) {
+            const params = new URLSearchParams(window.location.search);
+            params.set('datum', '{{ datum }}');
+            pdfLink.href = '{{ url_for("tagesplan_pdf") }}?' + params.toString();
+        }
+    })();
+
+    // ── Geocoding ──
+    async function batchGeocode() {
+        const btn = document.getElementById('geocode-btn');
+        const result = document.getElementById('geocode-result');
+        btn.disabled = true;
+        btn.textContent = '⏳ Läuft…';
+        result.textContent = '';
+
+        try {
+            const csrfToken = '{{ csrf_token() }}';
+            const resp = await fetch('/api/geocode/batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            });
+            const data = await resp.json();
+            result.textContent = `✅ ${data.erfolge} geokodiert, ${data.fehler} Fehler`;
+        } catch (e) {
+            result.textContent = '❌ Fehler: ' + e.message;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '📍 Alle Adressen geokodieren';
+        }
+    }
+</script>
+{% endblock %}

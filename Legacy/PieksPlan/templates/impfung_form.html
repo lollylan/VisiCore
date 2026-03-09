@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Impfung bearbeiten' if impfung else 'Neue Impfung' }} - PieksPlan{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('pflegeheime_liste') }}">Pflegeheime</a>
+    <span>/</span>
+    <a href="{{ url_for('bewohner_detail', id=bewohner.id) }}">{{ bewohner.nachname }}, {{ bewohner.vorname }}</a>
+    <span>/</span>
+    <strong>{{ 'Impfung bearbeiten' if impfung else 'Neue Impfung' }}</strong>
+</div>
+
+<div class="card" style="max-width: 700px;">
+    <h2 class="card-title" style="margin-bottom: var(--space-lg);">
+        {% if impfung %}Impfung bearbeiten{% else %}Neue Impfung f&uuml;r {{ bewohner.nachname }}, {{ bewohner.vorname }}{% endif %}
+    </h2>
+
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        {% if not impfung %}
+        <!-- Neue Impfung: Typ-Auswahl -->
+        <div class="form-group">
+            <label class="form-label" for="impftyp_auswahl">Impftyp *</label>
+            <select id="impftyp_auswahl" name="impftyp_auswahl" class="form-select" onchange="toggleFreitext()">
+                <option value="">-- Bitte w&auml;hlen --</option>
+                {% for si in standard_impfungen %}
+                <option value="{{ si.name }}">{{ si.name }} (j&auml;hrlich)</option>
+                {% endfor %}
+                <option value="freitext">Andere Impfung (Freitext)...</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="freitext-group" style="display:none;">
+            <label class="form-label" for="impftyp_freitext">Impfung (Freitext) *</label>
+            <input type="text" id="impftyp_freitext" name="impftyp_freitext" class="form-input"
+                placeholder="z.B. Tetanus, Pneumokokken, FSME...">
+        </div>
+
+        <div class="form-group" id="intervall-group" style="display:none;">
+            <label class="form-label" for="intervall">Wiederholung nach X Jahren (optional)</label>
+            <input type="number" id="intervall" name="intervall" class="form-input" min="1" max="30"
+                placeholder="z.B. 10 f&uuml;r Tetanus">
+            <p class="form-hint">Wie viele Jahre bis zur n&auml;chsten F&auml;lligkeit?</p>
+        </div>
+        {% else %}
+        <!-- Bestehende Impfung bearbeiten -->
+        <div class="form-group">
+            <label class="form-label">Impftyp</label>
+            <p
+                style="padding: var(--space-sm); background: var(--color-surface-hover); border-radius: var(--radius-md);">
+                <strong>{{ impfung.impftyp }}</strong>
+                {% if impfung.ist_standardimpfung %}(Standardimpfung){% endif %}
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="einverstaendnis_status">Einverst&auml;ndnis</label>
+            <select id="einverstaendnis_status" name="einverstaendnis_status" class="form-select">
+                <option value="NICHT_ANGEFRAGT" {{ 'selected' if impfung.einverstaendnis_status=='NICHT_ANGEFRAGT' }}>
+                    Noch nicht angefragt
+                </option>
+                <option value="JA" {{ 'selected' if impfung.einverstaendnis_status=='JA' }}>
+                    Ja
+                </option>
+                <option value="NEIN" {{ 'selected' if impfung.einverstaendnis_status=='NEIN' }}>
+                    Nein, abgelehnt
+                </option>
+                <option value="JA_JAEHRLICH" {{ 'selected' if impfung.einverstaendnis_status=='JA_JAEHRLICH' }}>
+                    Ja, auch mit j&auml;hrlicher Wiederholung einverstanden
+                </option>
+                <option value="JA_JAEHRLICH_NACHFRAGEN" {{ 'selected' if
+                    impfung.einverstaendnis_status=='JA_JAEHRLICH_NACHFRAGEN' }}>
+                    Ja, soll j&auml;hrlich erneut nachgefragt werden
+                </option>
+                <option value="NEIN_JAEHRLICH_NACHFRAGEN" {{ 'selected' if
+                    impfung.einverstaendnis_status=='NEIN_JAEHRLICH_NACHFRAGEN' }}>
+                    Nein, soll j&auml;hrlich erneut nachgefragt werden
+                </option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            {% if 'Grippe' in impfung.impftyp %}
+            <label class="form-label" for="einverstaendnis_jahr">Einverst&auml;ndnis gilt f&uuml;r Saison</label>
+            <select id="einverstaendnis_jahr" name="einverstaendnis_jahr" class="form-select">
+                {% set ej = impfung.einverstaendnis_jahr if impfung.einverstaendnis_jahr else current_year %}
+                {% set start_jahr = [ej, current_year] | min %}
+                {% for y in range(start_jahr, current_year + 5) %}
+                <option value="{{ y }}" {{ 'selected' if y==ej }}>Saison {{ y }}/{{ y + 1 }}</option>
+                {% endfor %}
+            </select>
+            <p class="form-hint">Grippe-Saison l&auml;uft von September bis zum Folgejahr.</p>
+            {% else %}
+            <label class="form-label" for="einverstaendnis_jahr">Einverst&auml;ndnis gilt f&uuml;r Jahr</label>
+            <input type="number" id="einverstaendnis_jahr" name="einverstaendnis_jahr" class="form-input" min="2020"
+                max="2040" value="{{ impfung.einverstaendnis_jahr if impfung.einverstaendnis_jahr else current_year }}"
+                placeholder="{{ current_year }}">
+            <p class="form-hint">
+                F&uuml;r welches Jahr gilt die aktuelle Zustimmung/Ablehnung?
+                {% if 'Corona' in impfung.impftyp %}
+                <br><strong>Corona:</strong> Gilt f&uuml;r das Kalenderjahr.
+                {% endif %}
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="status">Status</label>
+            <select id="status" name="status" class="form-select">
+                <option value="OFFEN" {{ 'selected' if impfung.status=='OFFEN' }}>Offen</option>
+                <option value="GEPLANT" {{ 'selected' if impfung.status=='GEPLANT' }}>Geplant</option>
+                <option value="DURCHGEFUEHRT" {{ 'selected' if impfung.status=='DURCHGEFUEHRT' }}>Durchgef&uuml;hrt
+                </option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="plan_datum">Plan-Datum</label>
+            <input type="date" id="plan_datum" name="plan_datum" class="form-input"
+                value="{{ impfung.plan_datum if impfung.plan_datum else '' }}">
+            <p class="form-hint">Wann soll die Impfung durchgef&uuml;hrt werden?</p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="durchfuehrung_datum">Durchf&uuml;hrungsdatum</label>
+            <input type="date" id="durchfuehrung_datum" name="durchfuehrung_datum" class="form-input"
+                value="{{ impfung.durchfuehrung_datum if impfung.durchfuehrung_datum else '' }}">
+            <p class="form-hint">Wann wurde die Impfung durchgef&uuml;hrt? (Setzt Status automatisch auf
+                &bdquo;Durchgef&uuml;hrt&ldquo;)</p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="wiederholung_intervall_jahre">Wiederholung nach X Jahren</label>
+            <input type="number" id="wiederholung_intervall_jahre" name="wiederholung_intervall_jahre"
+                class="form-input" min="1" max="30"
+                value="{{ impfung.wiederholung_intervall_jahre if impfung.wiederholung_intervall_jahre else '' }}">
+            <p class="form-hint">
+                {% if 'Grippe' in impfung.impftyp %}
+                Grippe wird automatisch am 1. September wieder f&auml;llig.
+                {% elif 'Corona' in impfung.impftyp %}
+                Corona wird 1 Jahr nach Durchf&uuml;hrung wieder f&auml;llig.
+                {% else %}
+                Nach wie vielen Jahren soll die Impfung erneut auftauchen?
+                {% endif %}
+            </p>
+        </div>
+
+        {% if impfung.naechste_faelligkeit %}
+        <div class="form-group">
+            <label class="form-label">N&auml;chste F&auml;lligkeit</label>
+            <p
+                style="padding: var(--space-sm); background: var(--color-surface-hover); border-radius: var(--radius-md);">
+                {{ impfung.naechste_faelligkeit }}
+            </p>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary" id="submit-btn">
+                {{ 'Speichern' if impfung else 'Impfung anlegen' }}
+            </button>
+            <a href="{{ url_for('bewohner_detail', id=bewohner.id) }}" class="btn btn-outline-dark">Abbrechen</a>
+        </div>
+    </form>
+</div>
+
+{% if impfung %}
+<!-- Dokument-Upload -->
+<div class="card" style="max-width: 700px; margin-top: var(--space-md);">
+    <h2 class="card-title" style="margin-bottom: var(--space-md);">Einverst&auml;ndnis-Dokument</h2>
+
+    {% if dokument %}
+    <div style="display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md);
+        padding: var(--space-sm); background: var(--color-surface-hover); border-radius: var(--radius-md);">
+        <span>{{ dokument.dateiname }}</span>
+        <div class="btn-group" style="margin-left: auto;">
+            <a href="{{ url_for('dokument_download', id=dokument.id) }}" class="btn btn-outline-dark btn-sm"
+                target="_blank">Anzeigen</a>
+            <form method="POST" action="{{ url_for('dokument_loeschen', id=dokument.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger btn-sm"
+                    onclick="return confirm('Dokument wirklich loeschen?')">L&ouml;schen</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('dokument_upload') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="bewohner_id" value="{{ bewohner.id }}">
+        <input type="hidden" name="impfung_id" value="{{ impfung.id }}">
+        <div class="form-group">
+            <label class="form-label" for="datei">{{ 'Neues Dokument hochladen' if dokument else 'PDF hochladen' }}</label>
+            <input type="file" id="datei" name="datei" class="form-input" accept=".pdf" required>
+            <p class="form-hint">Nur PDF, max. 5 MB.{% if dokument %} Ersetzt das bestehende Dokument.{% endif %}</p>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Hochladen</button>
+    </form>
+</div>
+{% endif %}
+
+{% if impfung %}
+{% block scripts %}
+<script>
+    // Warnung bei NEIN + Durchfuehrung/Planung
+    document.getElementById('submit-btn').addEventListener('click', function (e) {
+        var ev = document.getElementById('einverstaendnis_status');
+        var plan = document.getElementById('plan_datum');
+        var durch = document.getElementById('durchfuehrung_datum');
+
+        if (ev && (ev.value === 'NEIN' || ev.value === 'NEIN_JAEHRLICH_NACHFRAGEN')) {
+            if (durch && durch.value) {
+                if (!confirm('ACHTUNG: Das Einverstaendnis ist NEIN/abgelehnt!\n\n' +
+                    'Sie tragen eine Durchfuehrung entgegen der Einverstaendniserklaerung ein.\n\n' +
+                    'Wirklich speichern?')) {
+                    e.preventDefault();
+                }
+            } else if (plan && plan.value) {
+                if (!confirm('Hinweis: Fuer diese Impfung liegt kein Einverstaendnis vor.\n\n' +
+                    'Bitte klaeren Sie die Zustimmung vor der Durchfuehrung.\n\n' +
+                    'Trotzdem planen?')) {
+                    e.preventDefault();
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}
+{% endif %}
+{% endblock %}

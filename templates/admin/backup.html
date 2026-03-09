@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Backup – {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>💾 Backup &amp; Wiederherstellung</h1>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📦 Backup erstellen</h3>
+    </div>
+    <p style="color:var(--text-secondary); margin-bottom:1rem; font-size:0.9rem;">
+        Erstellt eine verschlüsselte Kopie der Datenbank im Ordner <code>backups/</code>.
+    </p>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="aktion" value="backup">
+        <button type="submit" class="btn btn-primary">💾 Backup jetzt erstellen</button>
+    </form>
+</div>
+
+<div class="card" style="border-color: var(--warning);">
+    <div class="card-header">
+        <h3 class="card-title" style="color:var(--warning);">⚠️ Datenbank wiederherstellen</h3>
+    </div>
+    <p style="color:var(--text-secondary); margin-bottom:1rem; font-size:0.9rem;">
+        <strong>Achtung:</strong> Die aktuelle Datenbank wird durch das Backup ersetzt!
+    </p>
+    <form method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="aktion" value="restore">
+        <div class="form-group">
+            <input type="file" name="backup_datei" class="form-control" accept=".db" required>
+        </div>
+        <button type="submit" class="btn btn-warning"
+            onclick="return confirm('Datenbank wirklich ersetzen? Alle aktuellen Daten gehen verloren!')">
+            ♻️ Wiederherstellen
+        </button>
+    </form>
+</div>
+
+{% if backups %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📂 Vorhandene Backups</h3>
+    </div>
+    <div class="table-responsive" style="border:none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Dateiname</th>
+                    <th>Größe</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in backups %}
+                <tr>
+                    <td>{{ b.name }}</td>
+                    <td>{{ "%.1f"|format(b.groesse / 1024) }} KB</td>
+                    <td><a href="{{ url_for('admin_backup_download', dateiname=b.name) }}"
+                            class="btn btn-sm btn-outline">⬇ Download</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

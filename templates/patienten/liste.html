@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Patienten – {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>👥 Patienten
+        {% if wohnort_filter %}
+        <span class="badge badge-{{ wohnort_filter|lower }}">{{ wohnort_filter }}</span>
+        {% endif %}
+    </h1>
+    <div class="btn-group">
+        <a href="{{ url_for('patient_neu') }}" class="btn btn-primary">➕ Neuer Patient</a>
+        <a href="{{ url_for('inaktive_patienten') }}" class="btn btn-outline">📦 Inaktive</a>
+    </div>
+</div>
+
+<div class="btn-group" style="margin-bottom: 1rem;">
+    <a href="{{ url_for('patienten_liste') }}"
+        class="btn btn-sm {% if not wohnort_filter %}btn-primary{% else %}btn-outline{% endif %}">Alle</a>
+    <a href="{{ url_for('patienten_liste', wohnort='ZUHAUSE') }}"
+        class="btn btn-sm {% if wohnort_filter == 'ZUHAUSE' %}btn-primary{% else %}btn-outline{% endif %}">🏠
+        Zuhause</a>
+    <a href="{{ url_for('patienten_liste', wohnort='HEIM') }}"
+        class="btn btn-sm {% if wohnort_filter == 'HEIM' %}btn-primary{% else %}btn-outline{% endif %}">🏥 Heim</a>
+</div>
+
+{% if patienten %}
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Typ</th>
+                <th>Standort</th>
+                <th>Behandler</th>
+                <th>Intervall</th>
+                <th>Letzter Besuch</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in patienten %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('patient_detail', id=p.id) }}" style="font-weight:500;">
+                        {{ p.nachname }}, {{ p.vorname }}
+                    </a>
+                    {% if p.geburtsdatum %}
+                    <br><span style="font-size:0.78rem; color:var(--text-muted);">* {{ p.geburtsdatum|datum }}</span>
+                    {% endif %}
+                </td>
+                <td><span class="badge badge-{{ p.wohnort_typ|lower }}">{{ p.wohnort_typ }}</span></td>
+                <td>
+                    {% if p.wohnort_typ == 'HEIM' and p.station_name %}
+                    {{ p.einrichtung_name }} / {{ p.station_name }}
+                    {% elif p.adresse %}
+                    {{ p.adresse[:40] }}{% if p.adresse|length > 40 %}…{% endif %}
+                    {% if p.geocode_status == 'FEHLER' %}
+                    <span title="Adresse nicht gefunden" style="color:var(--danger);">⚠️</span>
+                    {% elif not p.resolved_latitude and p.adresse %}
+                    <span title="Nicht geocodiert" style="color:#eab308;">📍</span>
+                    {% endif %}
+                    {% else %}
+                    <span style="color:var(--text-muted);">–</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% for b in behandler if b.id == p.primaer_behandler_id %}
+                    <span class="color-swatch" style="background:{{ b.farbe }};"></span> {{ b.name }}
+                    {% endfor %}
+                    {% if not p.primaer_behandler_id %}
+                    <span style="color:var(--text-muted);">–</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if p.resolved_intervall_tage %}
+                    {{ p.resolved_intervall_tage }} Tage
+                    {% if not p.intervall_tage %}
+                    <span style="font-size:0.8em; color:var(--text-muted);"><br>(vererbt)</span>
+                    {% endif %}
+                    {% else %}
+                    <span style="color:var(--text-muted);">–</span>
+                    {% endif %}
+                </td>
+                <td>{{ p.letzter_besuch|zeitstempel if p.letzter_besuch else '–' }}</td>
+                <td>
+                    <a href="{{ url_for('patient_detail', id=p.id) }}" class="btn btn-sm btn-outline">Details</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">👥</div>
+    <p>Noch keine Patienten angelegt.</p>
+    <a href="{{ url_for('patient_neu') }}" class="btn btn-primary">➕ Ersten Patienten anlegen</a>
+</div>
+{% endif %}
+{% endblock %}

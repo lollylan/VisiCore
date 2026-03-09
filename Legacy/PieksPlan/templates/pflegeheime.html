@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Pflegeheime - PieksPlan{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Pflegeheime</h1>
+    <a href="{{ url_for('pflegeheim_neu') }}" class="btn btn-primary">+ Neues Pflegeheim</a>
+</div>
+
+{% if pflegeheime %}
+<div class="grid">
+    {% for ph in pflegeheime %}
+    <a href="{{ url_for('pflegeheim_detail', id=ph.id) }}" class="card card-clickable"
+        style="text-decoration:none; color:inherit;">
+        <div class="card-title">{{ ph.name }}</div>
+        {% if ph.adresse %}
+        <p style="color: var(--color-text-light); font-size: var(--font-size-sm); margin-top: var(--space-xs);">{{
+            ph.adresse }}</p>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">🏥</div>
+    <p class="empty-state-text">Noch keine Pflegeheime angelegt.</p>
+    <a href="{{ url_for('pflegeheim_neu') }}" class="btn btn-primary">Erstes Pflegeheim anlegen</a>
+</div>
+{% endif %}
+{% endblock %}

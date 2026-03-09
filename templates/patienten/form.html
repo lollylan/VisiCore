@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}{% if patient %}Patient bearbeiten{% else %}Neuer Patient{% endif %} – {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('patienten_liste') }}">Patienten</a>
+    <span class="sep">›</span>
+    {% if patient %}
+    <a href="{{ url_for('patient_detail', id=patient.id) }}">{{ patient.nachname }}, {{ patient.vorname }}</a>
+    <span class="sep">›</span>
+    <span>Bearbeiten</span>
+    {% else %}
+    <span>Neuer Patient</span>
+    {% endif %}
+</div>
+
+<div class="page-header">
+    <h1>{% if patient %}✏️ Patient bearbeiten{% else %}➕ Neuer Patient{% endif %}</h1>
+</div>
+
+<div class="card">
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- Wohnort-Typ -->
+        <div class="form-group">
+            <label class="form-label">Wohnort-Typ</label>
+            <div class="btn-group">
+                <label
+                    class="btn {% if (not patient and not vorwahl_station_id) or (patient and patient.wohnort_typ == 'ZUHAUSE') %}btn-primary{% else %}btn-outline{% endif %}"
+                    style="cursor:pointer;">
+                    <input type="radio" name="wohnort_typ" value="ZUHAUSE" {% if (not patient and not
+                        vorwahl_station_id) or (patient and patient.wohnort_typ=='ZUHAUSE' ) %}checked{% endif %}
+                        onchange="toggleWohnort()" style="display:none;">
+                    🏠 Zuhause
+                </label>
+                <label
+                    class="btn {% if (patient and patient.wohnort_typ == 'HEIM') or (not patient and vorwahl_station_id) %}btn-primary{% else %}btn-outline{% endif %}"
+                    style="cursor:pointer;">
+                    <input type="radio" name="wohnort_typ" value="HEIM" {% if (patient and patient.wohnort_typ=='HEIM' )
+                        or (not patient and vorwahl_station_id) %}checked{% endif %} onchange="toggleWohnort()"
+                        style="display:none;">
+                    🏥 Heim
+                </label>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="nachname">Nachname *</label>
+                <input type="text" id="nachname" name="nachname" class="form-control" required
+                    value="{{ patient.nachname if patient else '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="vorname">Vorname *</label>
+                <input type="text" id="vorname" name="vorname" class="form-control" required
+                    value="{{ patient.vorname if patient else '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="geburtsdatum">Geburtsdatum</label>
+                <input type="date" id="geburtsdatum" name="geburtsdatum" class="form-control"
+                    value="{{ patient.geburtsdatum if patient and patient.geburtsdatum else '' }}">
+            </div>
+        </div>
+
+        <!-- Zuhause-Felder -->
+        <div id="zuhause-felder">
+            <div class="form-row">
+                <div class="form-group" style="flex:2;">
+                    <label class="form-label" for="strasse">Straße + Nr.</label>
+                    <input type="text" id="strasse" name="strasse" class="form-control" placeholder="z.B. Hauptstraße 5"
+                        value="{{ patient.strasse if patient and patient.strasse is defined and patient.strasse else '' }}">
+                </div>
+                <div class="form-group" style="flex:0 0 120px;">
+                    <label class="form-label" for="plz">PLZ</label>
+                    <input type="text" id="plz" name="plz" class="form-control" placeholder="97070"
+                        value="{{ patient.plz if patient and patient.plz is defined and patient.plz else '' }}">
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label class="form-label" for="stadt">Stadt</label>
+                    <input type="text" id="stadt" name="stadt" class="form-control" placeholder="Stadt"
+                        value="{{ patient.stadt if patient and patient.stadt is defined and patient.stadt else praxis_stadt }}">
+                </div>
+            </div>
+            {% if patient and patient.geocode_status == 'FEHLER' %}
+            <div style="margin-top:-0.5rem; margin-bottom:0.75rem; padding:0.5rem 0.75rem; background:rgba(239,68,68,0.15); border:1px solid var(--danger); border-radius:var(--radius); color:var(--danger); font-size:0.85rem;">
+                ⚠️ Adresse konnte nicht geocodiert werden. Bitte überprüfen.
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Heim-Felder -->
+        <div id="heim-felder" style="display:none;">
+            <div class="form-group">
+                <label class="form-label" for="station_id">Station / Wohngruppe</label>
+                <select id="station_id" name="station_id" class="form-control">
+                    <option value="">Bitte wählen…</option>
+                    {% for s in stationen %}
+                    <option value="{{ s.id }}" {% if (patient and patient.station_id==s.id) or (not patient and
+                        vorwahl_station_id==s.id) %}selected{% endif %}>
+                        {{ s.einrichtung_name }} / {{ s.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label" for="primaer_behandler_id">Primärer Behandler</label>
+                <select id="primaer_behandler_id" name="primaer_behandler_id" class="form-control">
+                    <option value="">Keiner (bzw. nach Heim/Station vererbt)</option>
+                    {% for b in behandler %}
+                    <option value="{{ b.id }}" {% if patient and patient.primaer_behandler_id==b.id %}selected{% endif
+                        %}>
+                        {{ b.name }} ({{ b.rolle }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <small class="form-text" style="color:var(--text-muted); font-size:0.8rem; margin-top:0.25rem;">
+                    Überschreibt die Standard-Zuweisung von Station/Heim.
+                </small>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="intervall_tage">Besuchsintervall (Tage)</label>
+                <input type="number" id="intervall_tage" name="intervall_tage" class="form-control" min="0"
+                    placeholder="z.B. 28"
+                    value="{{ patient.intervall_tage if patient and patient.intervall_tage else '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="besuchsdauer_minuten">Besuchsdauer (Min.)</label>
+                <input type="number" id="besuchsdauer_minuten" name="besuchsdauer_minuten" class="form-control" min="5"
+                    value="{{ patient.besuchsdauer_minuten if patient else '30' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="letzter_besuch">Letzter Besuch</label>
+                <input type="date" id="letzter_besuch" name="letzter_besuch" class="form-control"
+                    value="{{ patient.letzter_besuch[:10] if patient and patient.letzter_besuch else '' }}">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="cave">CAVE (Allergien, Unverträglichkeiten)</label>
+            <textarea id="cave" name="cave" class="form-control" rows="2"
+                placeholder="z.B. Penicillin-Allergie">{{ patient.cave if patient and patient.cave else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="notizen">Notizen</label>
+            <textarea id="notizen" name="notizen" class="form-control" rows="3"
+                placeholder="Notizen für den nächsten Hausbesuch…">{{ patient.notizen if patient and patient.notizen else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="form-check">
+                <input type="checkbox" name="ist_einmalig" {% if patient and patient.ist_einmalig %}checked{% endif %}>
+                Einmaliger Patient (wird nach Visite deaktiviert)
+            </label>
+        </div>
+
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+            <a href="{{ url_for('patient_detail', id=patient.id) if patient else url_for('patienten_liste') }}"
+                class="btn btn-outline">Abbrechen</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    function toggleWohnort() {
+        const typ = document.querySelector('input[name="wohnort_typ"]:checked').value;
+        const zuhause = document.getElementById('zuhause-felder');
+        const heim = document.getElementById('heim-felder');
+        const labels = document.querySelectorAll('input[name="wohnort_typ"]');
+
+        zuhause.style.display = typ === 'ZUHAUSE' ? 'block' : 'none';
+        heim.style.display = typ === 'HEIM' ? 'block' : 'none';
+
+        // Button-Styling aktualisieren
+        labels.forEach(input => {
+            const label = input.parentElement;
+            if (input.checked) {
+                label.classList.remove('btn-outline');
+                label.classList.add('btn-primary');
+            } else {
+                label.classList.remove('btn-primary');
+                label.classList.add('btn-outline');
+            }
+        });
+    }
+    // Initial
+    document.addEventListener('DOMContentLoaded', toggleWohnort);
+</script>
+{% endblock %}

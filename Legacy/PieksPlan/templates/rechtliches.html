@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Rechtliches - PieksPlan{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Rechtliches &amp; Datenschutz</h1>
+</div>
+
+<div class="card">
+    <h2 class="card-title" style="margin-bottom: var(--space-md);">Datenschutzhinweis</h2>
+
+    <p style="margin-bottom: var(--space-md);">
+        PieksPlan verarbeitet <strong>besondere Kategorien personenbezogener Daten</strong>
+        (Gesundheitsdaten) im Sinne von <strong>Art. 9 DSGVO</strong>.
+        Der Schutz dieser Daten hat h&ouml;chste Priorit&auml;t.
+    </p>
+
+    <h3 style="margin: var(--space-lg) 0 var(--space-sm);">Technische Schutzma&szlig;nahmen</h3>
+    <ul style="margin-left: var(--space-lg); margin-bottom: var(--space-md);">
+        <li><strong>Verschl&uuml;sselung:</strong> Die gesamte Datenbank ist mit AES-256
+            (SQLCipher) verschl&uuml;sselt. Ohne das korrekte Passwort ist kein Zugriff auf
+            die gespeicherten Daten m&ouml;glich.</li>
+        <li><strong>Lokaler Betrieb:</strong> Das System l&auml;uft ausschlie&szlig;lich im
+            lokalen Praxisnetzwerk. Es werden keine Daten an externe Server &uuml;bertragen.</li>
+        <li><strong>Passwortschutz:</strong> Der Zugang ist durch Benutzername und Passwort
+            gesch&uuml;tzt. Passw&ouml;rter werden mit bcrypt gehasht gespeichert.</li>
+        <li><strong>Verschl&uuml;sselte Backups:</strong> Datenbank-Backups sind ebenfalls
+            verschl&uuml;sselt (AES-256), da die exportierte Datei die verschl&uuml;sselte
+            Datenbank ist.</li>
+        <li><strong>CSRF-Schutz:</strong> Alle Formulare sind gegen
+            Cross-Site-Request-Forgery gesch&uuml;tzt.</li>
+    </ul>
+
+    <h3 style="margin: var(--space-lg) 0 var(--space-sm);">Gespeicherte Daten</h3>
+    <ul style="margin-left: var(--space-lg); margin-bottom: var(--space-md);">
+        <li>Pflegeheim-Strukturdaten (Name, Adresse, Wohngruppen)</li>
+        <li>Bewohner-Daten (Name, Geburtsdatum)</li>
+        <li>Impfdaten (Impftyp, Einverst&auml;ndnis, Status, Termine)</li>
+        <li>Benutzerdaten (Benutzername, Rolle)</li>
+    </ul>
+
+    <h3 style="margin: var(--space-lg) 0 var(--space-sm);">Berechtigte Personen</h3>
+    <p style="margin-bottom: var(--space-md);">
+        Nur autorisierte Anwender mit g&uuml;ltigem Benutzerkonto haben Zugriff.
+        Es gibt zwei Rollen:
+    </p>
+    <ul style="margin-left: var(--space-lg); margin-bottom: var(--space-md);">
+        <li><strong>Admin:</strong> Vollzugriff inkl. Benutzerverwaltung und Backup</li>
+        <li><strong>Nutzer:</strong> Daten einsehen und bearbeiten, keine Benutzerverwaltung</li>
+    </ul>
+
+    <h3 style="margin: var(--space-lg) 0 var(--space-sm);">L&ouml;schkonzept</h3>
+    <p style="margin-bottom: var(--space-md);">
+        Bewohner werden zun&auml;chst als &bdquo;inaktiv&ldquo; markiert.
+        Eine endg&uuml;ltige L&ouml;schung ist &uuml;ber die Inaktiven-Liste m&ouml;glich.
+        Bei endg&uuml;ltiger L&ouml;schung werden alle zugeordneten Impfdaten
+        unwiderruflich entfernt.
+    </p>
+
+    <h3 style="margin: var(--space-lg) 0 var(--space-sm);">Verantwortlichkeit</h3>
+    <p>
+        Die verantwortliche Stelle f&uuml;r die Datenverarbeitung ist die Praxis/Einrichtung,
+        die PieksPlan betreibt. F&uuml;r Fragen zum Datenschutz wenden Sie sich bitte an
+        den zust&auml;ndigen Datenschutzbeauftragten.
+    </p>
+</div>
+
+<div class="card">
+    <h2 class="card-title" style="margin-bottom: var(--space-md);">Haftungsausschluss</h2>
+    <p>
+        PieksPlan ist ein Planungstool und ersetzt <strong>keine medizinische Beratung</strong>.
+        Die Verantwortung f&uuml;r die Korrektheit der eingegebenen Daten und die
+        Durchf&uuml;hrung der Impfungen liegt bei den zust&auml;ndigen medizinischen
+        Fachkr&auml;ften. Die Software wird ohne Gew&auml;hr bereitgestellt.
+    </p>
+</div>
+
+<div class="card">
+    <h2 class="card-title" style="margin-bottom: var(--space-md);">Lizenz &amp; Open Source</h2>
+    <p style="margin-bottom: var(--space-md);">
+        PieksPlan ist <strong>Open-Source-Software</strong> und wird unter der
+        <strong>MIT-Lizenz</strong> vertrieben. Der Quellcode darf frei verwendet,
+        ver&auml;ndert und weitergegeben werden.
+    </p>
+
+    <div
+        style="background: var(--color-surface-hover); padding: var(--space-md); border-radius: var(--radius-md); font-family: monospace; font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+        MIT License<br><br>
+        Copyright (c) {{ current_year }} Dr. Florian Rasche<br><br>
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the &ldquo;Software&rdquo;), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:<br><br>
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.<br><br>
+        THE SOFTWARE IS PROVIDED &ldquo;AS IS&rdquo;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    </div>
+
+    <h3 style="margin: var(--space-lg) 0 var(--space-sm);">Ersteller &amp; Kontakt</h3>
+    <p>
+        <strong>Dr. Florian Rasche</strong><br>
+        Huttenstr. 6<br>
+        97072 W&uuml;rzburg<br>
+        E-Mail: <a href="mailto:florian.rasche@googlemail.com">florian.rasche@googlemail.com</a>
+    </p>
+</div>
+
+<div class="card">
+    <h2 class="card-title" style="margin-bottom: var(--space-md);">Software-Informationen</h2>
+    <p><strong>PieksPlan</strong> &ndash; Impfplanung f&uuml;r Pflegeheime</p>
+    <p style="color: var(--color-text-light); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+        Version 1.0 &bull; Open Source (MIT) &bull; Lokale Installation &bull; Verschl&uuml;sselt mit SQLCipher
+        (AES-256)
+    </p>
+</div>
+{% endblock %}

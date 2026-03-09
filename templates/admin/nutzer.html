@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Benutzer – {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>👤 Benutzerverwaltung</h1>
+    <a href="{{ url_for('admin_nutzer_neu') }}" class="btn btn-primary">➕ Neuer Benutzer</a>
+</div>
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>Benutzername</th>
+                <th>Rolle</th>
+                <th>Erstellt</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for n in nutzer %}
+            <tr>
+                <td style="font-weight:500;">{{ n.benutzername }}</td>
+                <td><span class="badge badge-{{ n.rolle }}">{{ n.rolle }}</span></td>
+                <td>{{ n.erstellt_am|zeitstempel }}</td>
+                <td>
+                    {% if n.id != current_user.id %}
+                    <form method="POST" action="{{ url_for('admin_nutzer_loeschen', id=n.id) }}"
+                        style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-danger"
+                            onclick="return confirm('Benutzer löschen?')">🗑</button>
+                    </form>
+                    {% else %}
+                    <span style="color:var(--text-muted); font-size:0.8rem;">(Du)</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
