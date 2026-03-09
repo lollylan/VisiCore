@@ -10,6 +10,11 @@ venv/
 data/
 database.db
 
+# PyInstaller
+build/
+dist/
+*.spec
+
 # IDE
 .vscode/
 .idea/
