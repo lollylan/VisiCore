@@ -18,6 +18,9 @@ database.db
 .DS_Store
 Thumbs.db
 
+# Legacy
+Legacy/
+
 # Temp / Dev notes
 .tmp/
 findings.md
