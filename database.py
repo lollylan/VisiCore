@@ -1074,6 +1074,11 @@ def get_tagesplan(stichtag=None, praxis_lat=None, praxis_lon=None, transportmodi
         d = dict(s)
         d['_typ'] = 'S'
         d['besuchsdauer_minuten'] = 15
+        # Entfernung zur Praxis berechnen (fuer spaetere Radius-Pruefung)
+        if d.get('latitude') and d.get('longitude'):
+            d['entfernung_km'] = round(routing.haversine_distance(
+                praxis_lat, praxis_lon, d['latitude'], d['longitude']
+            ), 1)
         alle_besuche.append(d)
 
     # Gruppieren nach Behandler
@@ -1114,7 +1119,7 @@ def get_tagesplan(stichtag=None, praxis_lat=None, praxis_lon=None, transportmodi
 
         verbleibend = []
         for b in gruppe['besuche']:
-            if b['_typ'] == 'P' and b.get('entfernung_km') is not None and b['entfernung_km'] > radius_km:
+            if b.get('entfernung_km') is not None and b['entfernung_km'] > radius_km:
                 b['ausserhalb_radius'] = True
                 ohne_behandler.append(b)
                 ausserhalb_radius += 1
