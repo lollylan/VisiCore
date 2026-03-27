@@ -365,6 +365,7 @@
                         {% if b._typ == 'P' %}
                         <form method="POST" action="{{ url_for('patient_visite', id=b.id) }}" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ url_for('tagesplan', datum=datum) }}">
                             <button type="submit" class="btn btn-sm btn-success"
                                 onclick="return confirm('Besuch registrieren?')">✅</button>
                         </form>
@@ -377,6 +378,7 @@
                         {% else %}
                         <form method="POST" action="{{ url_for('station_visite', id=b.id) }}" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ url_for('tagesplan', datum=datum) }}">
                             <button type="submit" class="btn btn-sm btn-success"
                                 onclick="return confirm('Stationsvisite registrieren?')">✅</button>
                         </form>

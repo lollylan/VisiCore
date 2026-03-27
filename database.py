@@ -986,7 +986,7 @@ def get_dashboard_stats():
         "SELECT COUNT(*) FROM stationen s "
         "WHERE s.intervall_tage > 0 "
         "AND (s.snooze_bis IS NULL OR s.snooze_bis < ?) AND ("
-        "datetime(s.letzter_besuch, '+' || s.intervall_tage || ' days') <= ? OR "
+        "date(s.letzter_besuch, '+' || s.intervall_tage || ' days') <= ? OR "
         "s.letzter_besuch IS NULL"
         ")",
         (heute, heute)
@@ -1271,7 +1271,7 @@ def get_faellige_stationen(stichtag=None):
         "LEFT JOIN behandler b ON b.id = COALESCE(s.override_behandler_id, s.standard_behandler_id, e.standard_behandler_id) "
         "WHERE s.intervall_tage > 0 "
         "AND (s.snooze_bis IS NULL OR s.snooze_bis < ?) AND ("
-        "datetime(s.letzter_besuch, '+' || s.intervall_tage || ' days') <= ? OR "
+        "date(s.letzter_besuch, '+' || s.intervall_tage || ' days') <= ? OR "
         "s.letzter_besuch IS NULL"
         ") ORDER BY e.name, s.name",
         (stichtag, stichtag)

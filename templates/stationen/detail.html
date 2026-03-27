@@ -13,8 +13,13 @@
     <div class="btn-group">
         <form method="POST" action="{{ url_for('station_visite', id=station.id) }}" style="display:inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ url_for('station_detail', id=station.id) }}">
             <button type="submit" class="btn btn-success"
                 onclick="return confirm('Stationsvisite für ALLE Patienten registrieren?')">✅ Stationsvisite</button>
+        </form>
+        <form method="POST" action="{{ url_for('station_heute', id=station.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline">📅 Heute einplanen</button>
         </form>
         <a href="{{ url_for('patient_neu', vorwahl_station_id=station.id) }}" class="btn btn-primary">➕ Patient
             hinzufügen</a>

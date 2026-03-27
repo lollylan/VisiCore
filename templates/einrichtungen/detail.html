@@ -63,27 +63,70 @@
                         <th>Station</th>
                         <th>Intervall</th>
                         <th>Letzter Besuch</th>
+                        <th>Nächster Besuch</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for s in stationen %}
+                    {% set heute = now().strftime('%Y-%m-%d') %}
+                    {% if s.letzter_besuch and s.intervall_tage %}
+                    {% set naechster = s.letzter_besuch[:10] %}
+                    {% endif %}
                     <tr>
-                        <td><a href="{{ url_for('station_detail', id=s.id) }}" style="font-weight:500;">{{ s.name }}</a>
-                        </td>
+                        <td><a href="{{ url_for('station_detail', id=s.id) }}" style="font-weight:500;">{{ s.name }}</a></td>
                         <td>{{ s.intervall_tage }} Tage</td>
                         <td>{{ s.letzter_besuch|zeitstempel if s.letzter_besuch else '–' }}</td>
                         <td>
+                            {% if s.snooze_bis and s.snooze_bis >= heute %}
+                            <span style="color:var(--text-muted);">⏸️ {{ s.snooze_bis|datum }}</span>
+                            {% else %}
+                            <span style="color:var(--text-muted);">–</span>
+                            {% endif %}
+                        </td>
+                        <td>
                             <div class="btn-group">
-                                <a href="{{ url_for('station_detail', id=s.id) }}"
-                                    class="btn btn-sm btn-outline">Details</a>
-                                <form method="POST" action="{{ url_for('station_visite', id=s.id) }}"
-                                    style="display:inline;">
+                                <a href="{{ url_for('station_detail', id=s.id) }}" class="btn btn-sm btn-outline">Details</a>
+                                <form method="POST" action="{{ url_for('station_visite', id=s.id) }}" style="display:inline;">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="next" value="{{ url_for('einrichtung_detail', id=einrichtung.id) }}">
                                     <button type="submit" class="btn btn-sm btn-success"
                                         onclick="return confirm('Stationsvisite registrieren?')">✅ Visite</button>
                                 </form>
+                                <form method="POST" action="{{ url_for('station_heute', id=s.id) }}" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline" title="Für heute einplanen">📅</button>
+                                </form>
+                                {% if s.snooze_bis and s.snooze_bis >= heute %}
+                                <form method="POST" action="{{ url_for('station_snooze_aufheben', id=s.id) }}" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-warning" title="Snooze aufheben">⏰</button>
+                                </form>
+                                {% else %}
+                                <button type="button" class="btn btn-sm btn-outline"
+                                    onclick="toggleSnooze('snooze-e{{ s.id }}')" title="Besuch verschieben">⏸️</button>
+                                {% endif %}
                             </div>
+                        </td>
+                    </tr>
+                    <tr id="snooze-e{{ s.id }}" style="display:none; background:var(--bg-secondary);">
+                        <td colspan="5" style="padding:0.6rem 1rem;">
+                            <form method="POST" action="{{ url_for('station_snooze', id=s.id) }}"
+                                style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <span style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">⏸️ Station verschieben um:</span>
+                                <select name="tage" class="form-control snooze-select" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;" onchange="handleSnoozeChange(this)">
+                                    <option value="1">1 Tag</option>
+                                    <option value="3">3 Tage</option>
+                                    <option value="7">7 Tage</option>
+                                    <option value="14">14 Tage</option>
+                                    <option value="30">30 Tage</option>
+                                    <option value="custom">Individuell…</option>
+                                </select>
+                                <input type="number" class="form-control snooze-custom" min="1" max="365" placeholder="Tage" style="width:75px; font-size:0.85rem; display:none;">
+                                <button type="submit" class="btn btn-sm btn-warning" onclick="return prepareSnooze(this.form)">Verschieben</button>
+                                <button type="button" class="btn btn-sm btn-outline" onclick="toggleSnooze('snooze-e{{ s.id }}')">Abbrechen</button>
+                            </form>
                         </td>
                     </tr>
                     {% endfor %}
@@ -197,6 +240,33 @@
 </div>
 
 <script>
+    function toggleSnooze(rowId) {
+        const row = document.getElementById(rowId);
+        if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+    }
+    function handleSnoozeChange(selectEl) {
+        const customInput = selectEl.parentElement.querySelector('.snooze-custom');
+        if (selectEl.value === 'custom') {
+            customInput.style.display = 'inline-block';
+            customInput.focus();
+        } else {
+            customInput.style.display = 'none';
+        }
+    }
+    function prepareSnooze(formEl) {
+        const select = formEl.querySelector('.snooze-select');
+        const customInput = formEl.querySelector('.snooze-custom');
+        if (select.value === 'custom') {
+            const val = parseInt(customInput.value);
+            if (!val || val < 1) {
+                customInput.style.outline = '2px solid var(--danger)';
+                customInput.focus();
+                return false;
+            }
+            select.value = val;
+        }
+        return true;
+    }
     function switchView(view) {
         if (view === 'stationen') {
             document.getElementById('view-stationen').style.display = 'block';

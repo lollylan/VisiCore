@@ -19,6 +19,10 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-success">✅ Visite registrieren</button>
         </form>
+        <form method="POST" action="{{ url_for('patient_heute', id=patient.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline">📅 Heute einplanen</button>
+        </form>
         {% if patient.snooze_bis %}
         <form method="POST" action="{{ url_for('patient_snooze_aufheben', id=patient.id) }}" style="display:inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

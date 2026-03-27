@@ -467,8 +467,25 @@ def create_app():
             db.station_visite_registrieren(id)
             protokoll('VISITE', 'Station', id, station['name'])
             flash(f'Stationsvisite fuer "{station["name"]}" registriert.', 'success')
-            return redirect(url_for('station_detail', id=id))
+            next_url = request.form.get('next')
+            return redirect(next_url if next_url else url_for('station_detail', id=id))
         return redirect(url_for('einrichtungen_liste'))
+
+    @app.route('/stationen/<int:id>/heute', methods=['POST'])
+    @login_required
+    def station_heute(id):
+        station = db.get_station(id)
+        if not station:
+            abort(404)
+        intervall = station['intervall_tage'] or 0
+        neues_datum = (date.today() - timedelta(days=intervall)).isoformat()
+        conn = db.get_db()
+        conn.execute("UPDATE stationen SET letzter_besuch = ?, snooze_bis = NULL WHERE id = ?", (neues_datum, id))
+        conn.commit()
+        protokoll('GEPLANT', 'Station', id, f"{station['name']} (heute fällig)")
+        flash(f'Station "{station["name"]}" ist jetzt für heute eingeplant.', 'success')
+        next_url = request.form.get('next')
+        return redirect(next_url if next_url else url_for('station_detail', id=id))
 
     @app.route('/stationen/<int:id>/snooze', methods=['POST'])
     @login_required
@@ -757,7 +774,8 @@ def create_app():
             protokoll('VISITE', 'Patient', id,
                       f"{patient['nachname']}, {patient['vorname']}")
             flash('Visite registriert.', 'success')
-            return redirect(url_for('patient_detail', id=id))
+            next_url = request.form.get('next')
+            return redirect(next_url if next_url else url_for('patient_detail', id=id))
         abort(404)
 
     @app.route('/patienten/<int:id>/snooze', methods=['POST'])
@@ -792,6 +810,18 @@ def create_app():
         db.update_patient(id, snooze_bis=None)
         flash('Snooze aufgehoben.', 'success')
         return redirect(url_for('patient_detail', id=id))
+
+    @app.route('/patienten/<int:id>/heute', methods=['POST'])
+    @login_required
+    def patient_heute(id):
+        patient = db.get_patient(id)
+        if not patient:
+            abort(404)
+        db.update_patient(id, geplanter_besuch=date.today().isoformat(), snooze_bis=None)
+        protokoll('GEPLANT', 'Patient', id, f"{patient['nachname']}, {patient['vorname']} (heute fällig)")
+        flash(f'Besuch für heute eingeplant.', 'success')
+        next_url = request.form.get('next')
+        return redirect(next_url if next_url else url_for('patient_detail', id=id))
 
     @app.route('/patienten/<int:id>/behandler-wechsel', methods=['POST'])
     @login_required
