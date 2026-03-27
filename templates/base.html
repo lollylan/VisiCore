@@ -52,13 +52,20 @@
                     <a href="{{ url_for('patienten_liste', wohnort='HEIM') }}" class="nav-link">
                         <span class="nav-icon">🏥</span> Heimbewohner
                     </a>
-                </div>
-
-                <div class="nav-section">
-                    <div class="nav-section-title">Einrichtungen</div>
                     <a href="{{ url_for('einrichtungen_liste') }}"
                         class="nav-link {% if 'einrichtung' in request.endpoint|default('') %}active{% endif %}">
                         <span class="nav-icon">🏢</span> Einrichtungen
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Impfungen</div>
+                    <a href="{{ url_for('impfungen_liste') }}"
+                        class="nav-link {% if request.endpoint == 'impfungen_liste' %}active{% endif %}">
+                        <span class="nav-icon">💉</span> Alle Impfungen
+                    </a>
+                    <a href="{{ url_for('impfungen_liste', status='offen') }}" class="nav-link">
+                        <span class="nav-icon">📋</span> Offen / Fällig
                     </a>
                 </div>
 

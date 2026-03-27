@@ -34,7 +34,7 @@
                 <th>Standort</th>
                 <th>Behandler</th>
                 <th>Intervall</th>
-                <th>Letzter Besuch</th>
+                <th>Nächster Besuch</th>
                 <th></th>
             </tr>
         </thead>
@@ -82,7 +82,15 @@
                     <span style="color:var(--text-muted);">–</span>
                     {% endif %}
                 </td>
-                <td>{{ p.letzter_besuch|zeitstempel if p.letzter_besuch else '–' }}</td>
+                <td>
+                    {% if p.naechster_besuch %}
+                    {% set heute = now().strftime('%Y-%m-%d') %}
+                    <span style="color:{% if p.naechster_besuch < heute %}var(--danger){% elif p.naechster_besuch == heute %}var(--warning){% else %}inherit{% endif %};">
+                        {{ p.naechster_besuch|datum }}
+                        {% if p.snooze_bis and p.snooze_bis >= heute %}⏸️{% endif %}
+                    </span>
+                    {% else %}–{% endif %}
+                </td>
                 <td>
                     <a href="{{ url_for('patient_detail', id=p.id) }}" class="btn btn-sm btn-outline">Details</a>
                 </td>

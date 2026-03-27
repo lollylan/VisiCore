@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Impfungen – {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>💉 Impfungen</h1>
+</div>
+
+<div class="btn-group" style="margin-bottom: 1rem;">
+    <a href="{{ url_for('impfungen_liste') }}"
+        class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-outline{% endif %}">Alle</a>
+    <a href="{{ url_for('impfungen_liste', status='offen') }}"
+        class="btn btn-sm {% if status_filter == 'offen' %}btn-primary{% else %}btn-outline{% endif %}">📋 Offen /
+        Fällig</a>
+    <a href="{{ url_for('impfungen_liste', status='durchgefuehrt') }}"
+        class="btn btn-sm {% if status_filter == 'durchgefuehrt' %}btn-primary{% else %}btn-outline{% endif %}">✅
+        Durchgeführt</a>
+</div>
+
+{% if impfungen %}
+<div class="table-responsive">
+    <table id="impfungen-table">
+        <thead>
+            <tr>
+                <th class="sortable" data-col="0" style="cursor:pointer; user-select:none;">Patient <span class="sort-icon"></span></th>
+                <th class="sortable" data-col="1" style="cursor:pointer; user-select:none;">Impftyp <span class="sort-icon"></span></th>
+                <th class="sortable" data-col="2" style="cursor:pointer; user-select:none;">Einverständnis <span class="sort-icon"></span></th>
+                <th class="sortable" data-col="3" style="cursor:pointer; user-select:none;">Status <span class="sort-icon"></span></th>
+                <th class="sortable" data-col="4" style="cursor:pointer; user-select:none;">Fällig am <span class="sort-icon"></span></th>
+                <th class="sortable" data-col="5" style="cursor:pointer; user-select:none;">Durchführung <span class="sort-icon"></span></th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for i in impfungen %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('patient_detail', id=i.patient_id) }}"
+                        style="text-decoration:none; color:var(--text-primary); font-weight:500;">
+                        {{ i.nachname }}, {{ i.vorname }}
+                    </a>
+                </td>
+                <td><strong>{{ i.impftyp }}</strong></td>
+                <td data-sort="{{ i.einverstaendnis_status }}">
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        {% if i.einverstaendnis_status == 'NICHT_ANGEFRAGT' %}
+                        <span class="badge"
+                            style="background:var(--bg-secondary); color:var(--text-muted);">nicht angefragt</span>
+                        {% elif i.einverstaendnis_status == 'ANGEFRAGT' %}
+                        <span class="badge badge-geplant">angefragt</span>
+                        {% else %}
+                        <span
+                            class="badge badge-{% if 'JA' in i.einverstaendnis_status %}ja{% elif 'NEIN' in i.einverstaendnis_status %}nein{% else %}nachfragen{% endif %}">
+                            {{ i.einverstaendnis_status|einverstaendnis_label }}
+                        </span>
+                        {% endif %}
+                        {% if i.dokument_id %}
+                        <a href="{{ url_for('dokument_download', id=i.dokument_id) }}" title="PDF öffnen"
+                            style="text-decoration:none; font-size:1.1rem;">📎</a>
+                        {% endif %}
+                    </div>
+                </td>
+                <td data-sort="{{ i.status }}">
+                    <span class="badge badge-{{ i.status|lower }}">{{ i.status }}</span>
+                </td>
+                <td data-sort="{{ i.naechste_faelligkeit or '9999-99-99' }}">{{ i.naechste_faelligkeit|datum if i.naechste_faelligkeit else '–' }}</td>
+                <td data-sort="{{ i.durchfuehrung_datum or '9999-99-99' }}">{{ i.durchfuehrung_datum|datum if i.durchfuehrung_datum else '–' }}</td>
+                <td>
+                    <a href="{{ url_for('impfung_bearbeiten', id=i.id) }}" class="btn btn-sm btn-outline">✏️</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">💉</div>
+    <h3>Keine Impfungen gefunden</h3>
+    <p>{% if status_filter %}Keine Impfungen mit diesem Filter.{% else %}Es sind noch keine Impfungen angelegt.{% endif %}</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const table = document.getElementById('impfungen-table');
+    if (!table) return;
+
+    let sortCol = -1;
+    let sortAsc = true;
+
+    table.querySelectorAll('th.sortable').forEach(function(th) {
+        th.addEventListener('click', function() {
+            const col = parseInt(th.dataset.col);
+            if (sortCol === col) {
+                sortAsc = !sortAsc;
+            } else {
+                sortCol = col;
+                sortAsc = true;
+            }
+
+            // Alle Icons zurücksetzen
+            table.querySelectorAll('th.sortable .sort-icon').forEach(function(icon) {
+                icon.textContent = '';
+            });
+            th.querySelector('.sort-icon').textContent = sortAsc ? ' ▲' : ' ▼';
+
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.sort(function(a, b) {
+                const cellA = a.querySelectorAll('td')[col];
+                const cellB = b.querySelectorAll('td')[col];
+                const valA = (cellA.dataset.sort !== undefined ? cellA.dataset.sort : cellA.textContent).trim().toLowerCase();
+                const valB = (cellB.dataset.sort !== undefined ? cellB.dataset.sort : cellB.textContent).trim().toLowerCase();
+                if (valA < valB) return sortAsc ? -1 : 1;
+                if (valA > valB) return sortAsc ? 1 : -1;
+                return 0;
+            });
+
+            rows.forEach(function(row) { tbody.appendChild(row); });
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -470,6 +470,43 @@ def create_app():
             return redirect(url_for('station_detail', id=id))
         return redirect(url_for('einrichtungen_liste'))
 
+    @app.route('/stationen/<int:id>/snooze', methods=['POST'])
+    @login_required
+    def station_snooze(id):
+        station = db.get_station(id)
+        if not station:
+            abort(404)
+        tage_raw = request.form.get('tage', '7')
+        try:
+            tage = int(tage_raw)
+            if tage <= 0:
+                raise ValueError
+        except ValueError:
+            flash('Ungültige Snooze-Dauer.', 'danger')
+            return redirect(url_for('station_detail', id=id))
+
+        snooze_bis = (date.today() + timedelta(days=tage)).isoformat()
+        db.get_db().execute(
+            "UPDATE stationen SET snooze_bis = ? WHERE id = ?", (snooze_bis, id)
+        )
+        db.get_db().commit()
+        protokoll('SNOOZE', 'Station', id, f"{station['name']} (bis {snooze_bis})")
+        flash(f'Station "{station["name"]}" verschoben bis {snooze_bis}.', 'success')
+        next_url = request.form.get('next')
+        return redirect(next_url if next_url else url_for('station_detail', id=id))
+
+    @app.route('/stationen/<int:id>/snooze/aufheben', methods=['POST'])
+    @login_required
+    def station_snooze_aufheben(id):
+        station = db.get_station(id)
+        if not station:
+            abort(404)
+        db.get_db().execute("UPDATE stationen SET snooze_bis = NULL WHERE id = ?", (id,))
+        db.get_db().commit()
+        flash('Snooze aufgehoben.', 'success')
+        next_url = request.form.get('next')
+        return redirect(next_url if next_url else url_for('station_detail', id=id))
+
     # ════════════════════════════════════════════════════════
     # PATIENTEN
     # ════════════════════════════════════════════════════════
@@ -723,6 +760,39 @@ def create_app():
             return redirect(url_for('patient_detail', id=id))
         abort(404)
 
+    @app.route('/patienten/<int:id>/snooze', methods=['POST'])
+    @login_required
+    def patient_snooze(id):
+        patient = db.get_patient(id)
+        if not patient:
+            abort(404)
+        tage_raw = request.form.get('tage', '7')
+        try:
+            tage = int(tage_raw)
+            if tage <= 0:
+                raise ValueError
+        except ValueError:
+            flash('Ungültige Snooze-Dauer.', 'danger')
+            return redirect(url_for('patient_detail', id=id))
+
+        snooze_bis = (date.today() + timedelta(days=tage)).isoformat()
+        db.update_patient(id, snooze_bis=snooze_bis)
+        protokoll('SNOOZE', 'Patient', id,
+                  f"{patient['nachname']}, {patient['vorname']} (bis {snooze_bis})")
+        flash(f'Besuch verschoben bis {snooze_bis}.', 'success')
+        next_url = request.form.get('next')
+        return redirect(next_url if next_url else url_for('patient_detail', id=id))
+
+    @app.route('/patienten/<int:id>/snooze/aufheben', methods=['POST'])
+    @login_required
+    def patient_snooze_aufheben(id):
+        patient = db.get_patient(id)
+        if not patient:
+            abort(404)
+        db.update_patient(id, snooze_bis=None)
+        flash('Snooze aufgehoben.', 'success')
+        return redirect(url_for('patient_detail', id=id))
+
     @app.route('/patienten/<int:id>/behandler-wechsel', methods=['POST'])
     @login_required
     def patient_behandler_wechsel(id):
@@ -793,6 +863,17 @@ def create_app():
     # IMPFUNGEN
     # ════════════════════════════════════════════════════════
 
+    @app.route('/impfungen')
+    @login_required
+    def impfungen_liste():
+        status_filter = request.args.get('status', None)
+        if status_filter not in ('offen', 'durchgefuehrt'):
+            status_filter = None
+        impfungen = db.get_alle_impfungen(status_filter)
+        return render_template('impfungen/liste.html',
+                               impfungen=impfungen,
+                               status_filter=status_filter)
+
     @app.route('/patienten/<int:p_id>/impfungen/neu', methods=['GET', 'POST'])
     @login_required
     def impfung_neu(p_id):
@@ -850,6 +931,9 @@ def create_app():
             status = request.form.get('status', 'OFFEN')
             plan_datum = request.form.get('plan_datum') or None
             durchfuehrung_datum = request.form.get('durchfuehrung_datum') or None
+
+            if durchfuehrung_datum and status != 'DURCHGEFUEHRT':
+                status = 'DURCHGEFUEHRT'
 
             updates['status'] = status
             updates['plan_datum'] = plan_datum

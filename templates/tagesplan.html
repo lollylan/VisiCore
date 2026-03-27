@@ -129,6 +129,8 @@
                         </form>
                         <button type="button" class="btn btn-sm btn-outline"
                             onclick="toggleBehandlerForm('bw-{{ b.id }}')" title="Behandler wechseln">🧑‍⚕️</button>
+                        <button type="button" class="btn btn-sm btn-outline"
+                            onclick="toggleBehandlerForm('snooze-oz-{{ b.id }}')" title="Besuch verschieben">⏸️</button>
                         {% else %}
                         <form method="POST" action="{{ url_for('station_visite', id=b.id) }}" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -136,10 +138,56 @@
                         </form>
                         <button type="button" class="btn btn-sm btn-outline"
                             onclick="toggleBehandlerForm('bw-s{{ b.id }}')" title="Behandler wechseln">🧑‍⚕️</button>
+                        <button type="button" class="btn btn-sm btn-outline"
+                            onclick="toggleBehandlerForm('snooze-oz-s{{ b.id }}')" title="Station verschieben">⏸️</button>
                         {% endif %}
                     </td>
                 </tr>
+                {% if b._typ == 'S' %}
+                <tr id="snooze-oz-s{{ b.id }}" style="display:none; background:var(--bg-secondary);">
+                    <td colspan="7" style="padding:0.6rem 1rem;">
+                        <form method="POST" action="{{ url_for('station_snooze', id=b.id) }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ url_for('tagesplan', datum=datum) }}">
+                            <span style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">⏸️ Station verschieben um:</span>
+                            <select name="tage" class="form-control snooze-select" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;" onchange="handleSnoozeChange(this)">
+                                <option value="1">1 Tag</option>
+                                <option value="3">3 Tage</option>
+                                <option value="7">7 Tage</option>
+                                <option value="14">14 Tage</option>
+                                <option value="30">30 Tage</option>
+                                <option value="custom">Individuell…</option>
+                            </select>
+                            <input type="number" class="form-control snooze-custom" min="1" max="365" placeholder="Tage" style="width:75px; font-size:0.85rem; display:none;">
+                            <button type="submit" class="btn btn-sm btn-warning" onclick="return prepareSnooze(this.form)">Verschieben</button>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                onclick="toggleBehandlerForm('snooze-oz-s{{ b.id }}')">Abbrechen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endif %}
                 {% if b._typ == 'P' %}
+                <tr id="snooze-oz-{{ b.id }}" style="display:none; background:var(--bg-secondary);">
+                    <td colspan="7" style="padding:0.6rem 1rem;">
+                        <form method="POST" action="{{ url_for('patient_snooze', id=b.id) }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ url_for('tagesplan', datum=datum) }}">
+                            <span style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">⏸️ Besuch verschieben um:</span>
+                            <select name="tage" class="form-control snooze-select" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;" onchange="handleSnoozeChange(this)">
+                                <option value="1">1 Tag</option>
+                                <option value="3">3 Tage</option>
+                                <option value="7">7 Tage</option>
+                                <option value="14">14 Tage</option>
+                                <option value="30">30 Tage</option>
+                                <option value="custom">Individuell…</option>
+                            </select>
+                            <input type="number" class="form-control snooze-custom" min="1" max="365" placeholder="Tage" style="width:75px; font-size:0.85rem; display:none;">
+                            <button type="submit" class="btn btn-sm btn-warning" onclick="return prepareSnooze(this.form)">Verschieben</button>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                onclick="toggleBehandlerForm('snooze-oz-{{ b.id }}')">Abbrechen</button>
+                        </form>
+                    </td>
+                </tr>
                 <tr id="bw-{{ b.id }}" style="display:none; background:var(--bg-secondary);">
                     <td colspan="7" style="padding:0.6rem 1rem;">
                         <form method="POST" action="{{ url_for('tagesplan_behandler_wechseln') }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
@@ -323,6 +371,9 @@
                         <button type="button" class="btn btn-sm btn-outline"
                             onclick="toggleBehandlerForm('bw-{{ b.id }}')"
                             title="Behandler wechseln">🧑‍⚕️</button>
+                        <button type="button" class="btn btn-sm btn-outline"
+                            onclick="toggleBehandlerForm('snooze-{{ b.id }}')"
+                            title="Besuch verschieben">⏸️</button>
                         {% else %}
                         <form method="POST" action="{{ url_for('station_visite', id=b.id) }}" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -332,10 +383,57 @@
                         <button type="button" class="btn btn-sm btn-outline"
                             onclick="toggleBehandlerForm('bw-s{{ b.id }}')"
                             title="Behandler wechseln">🧑‍⚕️</button>
+                        <button type="button" class="btn btn-sm btn-outline"
+                            onclick="toggleBehandlerForm('snooze-s{{ b.id }}')"
+                            title="Station verschieben">⏸️</button>
                         {% endif %}
                     </td>
                 </tr>
+                {% if b._typ == 'S' %}
+                <tr id="snooze-s{{ b.id }}" style="display:none; background:var(--bg-secondary);">
+                    <td colspan="7" style="padding:0.6rem 1rem;">
+                        <form method="POST" action="{{ url_for('station_snooze', id=b.id) }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ url_for('tagesplan', datum=datum) }}">
+                            <span style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">⏸️ Station verschieben um:</span>
+                            <select name="tage" class="form-control snooze-select" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;" onchange="handleSnoozeChange(this)">
+                                <option value="1">1 Tag</option>
+                                <option value="3">3 Tage</option>
+                                <option value="7">7 Tage</option>
+                                <option value="14">14 Tage</option>
+                                <option value="30">30 Tage</option>
+                                <option value="custom">Individuell…</option>
+                            </select>
+                            <input type="number" class="form-control snooze-custom" min="1" max="365" placeholder="Tage" style="width:75px; font-size:0.85rem; display:none;">
+                            <button type="submit" class="btn btn-sm btn-warning" onclick="return prepareSnooze(this.form)">Verschieben</button>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                onclick="toggleBehandlerForm('snooze-s{{ b.id }}')">Abbrechen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endif %}
                 {% if b._typ == 'P' %}
+                <tr id="snooze-{{ b.id }}" style="display:none; background:var(--bg-secondary);">
+                    <td colspan="7" style="padding:0.6rem 1rem;">
+                        <form method="POST" action="{{ url_for('patient_snooze', id=b.id) }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ url_for('tagesplan', datum=datum) }}">
+                            <span style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">⏸️ Besuch verschieben um:</span>
+                            <select name="tage" class="form-control snooze-select" style="width:auto; font-size:0.85rem; padding:0.25rem 0.5rem;" onchange="handleSnoozeChange(this)">
+                                <option value="1">1 Tag</option>
+                                <option value="3">3 Tage</option>
+                                <option value="7">7 Tage</option>
+                                <option value="14">14 Tage</option>
+                                <option value="30">30 Tage</option>
+                                <option value="custom">Individuell…</option>
+                            </select>
+                            <input type="number" class="form-control snooze-custom" min="1" max="365" placeholder="Tage" style="width:75px; font-size:0.85rem; display:none;">
+                            <button type="submit" class="btn btn-sm btn-warning" onclick="return prepareSnooze(this.form)">Verschieben</button>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                onclick="toggleBehandlerForm('snooze-{{ b.id }}')">Abbrechen</button>
+                        </form>
+                    </td>
+                </tr>
                 <tr id="bw-{{ b.id }}" style="display:none; background:var(--bg-secondary);">
                     <td colspan="7" style="padding:0.6rem 1rem;">
                         <form method="POST" action="{{ url_for('tagesplan_behandler_wechseln') }}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
@@ -580,6 +678,31 @@
             pdfLink.href = '{{ url_for("tagesplan_pdf") }}?' + params.toString();
         }
     })();
+
+    // ── Snooze: Individuell ──
+    function handleSnoozeChange(selectEl) {
+        const customInput = selectEl.parentElement.querySelector('.snooze-custom');
+        if (selectEl.value === 'custom') {
+            customInput.style.display = 'inline-block';
+            customInput.focus();
+        } else {
+            customInput.style.display = 'none';
+        }
+    }
+    function prepareSnooze(formEl) {
+        const select = formEl.querySelector('.snooze-select');
+        const customInput = formEl.querySelector('.snooze-custom');
+        if (select.value === 'custom') {
+            const val = parseInt(customInput.value);
+            if (!val || val < 1) {
+                customInput.style.outline = '2px solid var(--danger)';
+                customInput.focus();
+                return false;
+            }
+            select.value = val;
+        }
+        return true;
+    }
 
     // ── Geocoding ──
     async function batchGeocode() {

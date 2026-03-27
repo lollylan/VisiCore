@@ -53,6 +53,18 @@
             <span class="info-label">Letzter Besuch</span>
             <span class="info-value">{{ station.letzter_besuch|zeitstempel if station.letzter_besuch else '–' }}</span>
         </div>
+        <div class="info-item">
+            <span class="info-label">Nächster Besuch</span>
+            <span class="info-value">
+                {% if station.naechster_besuch %}
+                {% set heute = now().strftime('%Y-%m-%d') %}
+                <span style="color:{% if station.naechster_besuch < heute %}var(--danger){% elif station.naechster_besuch == heute %}var(--warning){% else %}inherit{% endif %}; font-weight:{% if station.naechster_besuch <= heute %}600{% else %}normal{% endif %};">
+                    {{ station.naechster_besuch|datum }}
+                    {% if station.snooze_bis and station.snooze_bis >= heute %} ⏸️{% endif %}
+                </span>
+                {% else %}–{% endif %}
+            </span>
+        </div>
     </div>
 </div>
 

@@ -19,6 +19,26 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-success">✅ Visite registrieren</button>
         </form>
+        {% if patient.snooze_bis %}
+        <form method="POST" action="{{ url_for('patient_snooze_aufheben', id=patient.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-warning">⏰ Snooze aufheben (bis {{ patient.snooze_bis|datum }})</button>
+        </form>
+        {% else %}
+        <form method="POST" action="{{ url_for('patient_snooze', id=patient.id) }}" style="display:flex; gap:0.25rem; align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="tage" class="form-control snooze-select" style="width:auto; padding:0.4rem 0.6rem;" onchange="handleSnoozeChange(this)">
+                <option value="1">1 Tag</option>
+                <option value="3">3 Tage</option>
+                <option value="7">7 Tage</option>
+                <option value="14">14 Tage</option>
+                <option value="30">30 Tage</option>
+                <option value="custom">Individuell…</option>
+            </select>
+            <input type="number" class="form-control snooze-custom" min="1" max="365" placeholder="Tage" style="width:80px; display:none;">
+            <button type="submit" class="btn btn-outline" onclick="return prepareSnooze(this.form)">⏸️ Snooze</button>
+        </form>
+        {% endif %}
         <a href="{{ url_for('patient_bearbeiten', id=patient.id) }}" class="btn btn-outline">✏️ Bearbeiten</a>
     </div>
 </div>
@@ -104,6 +124,18 @@
         <div class="info-item">
             <span class="info-label">Letzter Besuch</span>
             <span class="info-value">{{ patient.letzter_besuch|zeitstempel if patient.letzter_besuch else '–' }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Nächster Besuch</span>
+            <span class="info-value">
+                {% if patient.naechster_besuch %}
+                {% set heute = now().strftime('%Y-%m-%d') %}
+                <span style="color:{% if patient.naechster_besuch < heute %}var(--danger){% elif patient.naechster_besuch == heute %}var(--warning){% else %}inherit{% endif %}; font-weight:{% if patient.naechster_besuch <= heute %}600{% else %}normal{% endif %};">
+                    {{ patient.naechster_besuch|datum }}
+                    {% if patient.snooze_bis and patient.snooze_bis >= heute %} ⏸️{% endif %}
+                </span>
+                {% else %}–{% endif %}
+            </span>
         </div>
         <div class="info-item">
             <span class="info-label">Geplanter Besuch</span>
@@ -291,4 +323,32 @@
     </form>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function handleSnoozeChange(selectEl) {
+        const customInput = selectEl.parentElement.querySelector('.snooze-custom');
+        if (selectEl.value === 'custom') {
+            customInput.style.display = 'inline-block';
+            customInput.focus();
+        } else {
+            customInput.style.display = 'none';
+        }
+    }
+    function prepareSnooze(formEl) {
+        const select = formEl.querySelector('.snooze-select');
+        const customInput = formEl.querySelector('.snooze-custom');
+        if (select.value === 'custom') {
+            const val = parseInt(customInput.value);
+            if (!val || val < 1) {
+                customInput.style.outline = '2px solid var(--danger)';
+                customInput.focus();
+                return false;
+            }
+            select.value = val;
+        }
+        return true;
+    }
+</script>
 {% endblock %}

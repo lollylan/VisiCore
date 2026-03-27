@@ -89,7 +89,7 @@ def init_db():
             station_id INTEGER REFERENCES stationen(id),
             intervall_tage INTEGER,
             letzter_besuch TIMESTAMP,
-            besuchsdauer_minuten INTEGER DEFAULT 30,
+            besuchsdauer_minuten INTEGER DEFAULT 15,
             geplanter_besuch DATE,
             snooze_bis DATE,
             ist_einmalig BOOLEAN DEFAULT 0,
@@ -173,6 +173,12 @@ def init_db():
     # Migration: override_behandler_id für Stationen (einmaliger Behandlerwechsel)
     try:
         db.execute("ALTER TABLE stationen ADD COLUMN override_behandler_id INTEGER REFERENCES behandler(id)")
+    except sqlcipher3.OperationalError:
+        pass  # Spalte existiert bereits
+
+    # Migration: snooze_bis für Stationen
+    try:
+        db.execute("ALTER TABLE stationen ADD COLUMN snooze_bis DATE")
     except sqlcipher3.OperationalError:
         pass  # Spalte existiert bereits
 
@@ -468,7 +474,12 @@ def get_station(station_id):
     return db.execute(
         "SELECT s.*, e.name as einrichtung_name, e.id as einrichtung_id_ref, "
         "COALESCE(s.standard_behandler_id, e.standard_behandler_id) as resolved_behandler_id, "
-        "b.name as behandler_name, b.farbe as behandler_farbe "
+        "b.name as behandler_name, b.farbe as behandler_farbe, "
+        "CASE "
+        "  WHEN s.snooze_bis IS NOT NULL AND s.snooze_bis >= date('now') THEN s.snooze_bis "
+        "  WHEN s.letzter_besuch IS NOT NULL AND s.intervall_tage IS NOT NULL "
+        "    THEN date(s.letzter_besuch, '+' || s.intervall_tage || ' days') "
+        "  ELSE NULL END as naechster_besuch "
         "FROM stationen s "
         "JOIN einrichtungen e ON s.einrichtung_id = e.id "
         "LEFT JOIN behandler b ON b.id = COALESCE(s.standard_behandler_id, e.standard_behandler_id) "
@@ -560,7 +571,15 @@ def get_patienten(nur_aktive=True, wohnort_typ=None, station_id=None):
     sql = "SELECT p.*, s.name as station_name, e.name as einrichtung_name, "
     sql += "COALESCE(p.intervall_tage, s.intervall_tage) as resolved_intervall_tage, "
     sql += "COALESCE(p.latitude, e.latitude) as resolved_latitude, "
-    sql += "COALESCE(p.longitude, e.longitude) as resolved_longitude "
+    sql += "COALESCE(p.longitude, e.longitude) as resolved_longitude, "
+    sql += "CASE "
+    sql += "  WHEN p.snooze_bis IS NOT NULL AND p.snooze_bis >= date('now') THEN p.snooze_bis "
+    sql += "  WHEN p.geplanter_besuch IS NOT NULL THEN p.geplanter_besuch "
+    sql += "  WHEN p.letzter_besuch IS NOT NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+    sql += "    THEN date(p.letzter_besuch, '+' || COALESCE(p.intervall_tage, s.intervall_tage) || ' days') "
+    sql += "  WHEN p.letzter_besuch IS NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+    sql += "    THEN date('now') "
+    sql += "  ELSE NULL END as naechster_besuch "
     sql += "FROM patienten p "
     sql += "LEFT JOIN stationen s ON p.station_id = s.id "
     sql += "LEFT JOIN einrichtungen e ON s.einrichtung_id = e.id "
@@ -589,7 +608,15 @@ def get_patient(patient_id):
         "COALESCE(p.intervall_tage, s.intervall_tage) as resolved_intervall_tage, "
         "COALESCE(p.latitude, e.latitude) as resolved_latitude, "
         "COALESCE(p.longitude, e.longitude) as resolved_longitude, "
-        "b.name as behandler_name, b.farbe as behandler_farbe "
+        "b.name as behandler_name, b.farbe as behandler_farbe, "
+        "CASE "
+        "  WHEN p.snooze_bis IS NOT NULL AND p.snooze_bis >= date('now') THEN p.snooze_bis "
+        "  WHEN p.geplanter_besuch IS NOT NULL THEN p.geplanter_besuch "
+        "  WHEN p.letzter_besuch IS NOT NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+        "    THEN date(p.letzter_besuch, '+' || COALESCE(p.intervall_tage, s.intervall_tage) || ' days') "
+        "  WHEN p.letzter_besuch IS NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+        "    THEN date('now') "
+        "  ELSE NULL END as naechster_besuch "
         "FROM patienten p "
         "LEFT JOIN stationen s ON p.station_id = s.id "
         "LEFT JOIN einrichtungen e ON s.einrichtung_id = e.id "
@@ -621,7 +648,7 @@ def get_inaktive_patienten():
 
 def create_patient(nachname, vorname, wohnort_typ='ZUHAUSE', geburtsdatum=None,
                    adresse=None, latitude=None, longitude=None, station_id=None,
-                   intervall_tage=None, besuchsdauer_minuten=30,
+                   intervall_tage=None, besuchsdauer_minuten=15,
                    primaer_behandler_id=None, cave=None, notizen=None,
                    ist_einmalig=False, letzter_besuch=None):
     db = get_db()
@@ -946,25 +973,62 @@ def get_dashboard_stats():
     faellige_hausbesuche = db.execute(
         "SELECT COUNT(*) FROM patienten p "
         "LEFT JOIN stationen s ON p.station_id = s.id "
-        "WHERE p.aktiv = 1 AND p.wohnort_typ = 'ZUHAUSE' AND ("
+        "WHERE p.aktiv = 1 AND p.wohnort_typ = 'ZUHAUSE' "
+        "AND (p.snooze_bis IS NULL OR p.snooze_bis < ?) AND ("
         "(COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL AND COALESCE(p.intervall_tage, s.intervall_tage) > 0 AND "
         "datetime(p.letzter_besuch, '+' || COALESCE(p.intervall_tage, s.intervall_tage) || ' days') <= ?) OR "
         "(p.geplanter_besuch IS NOT NULL AND p.geplanter_besuch <= ?) OR "
         "(p.letzter_besuch IS NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL)"
         ")",
-        (heute, heute)
+        (heute, heute, heute)
     ).fetchone()[0]
     faellige_stationen = db.execute(
         "SELECT COUNT(*) FROM stationen s "
-        "WHERE s.intervall_tage > 0 AND ("
+        "WHERE s.intervall_tage > 0 "
+        "AND (s.snooze_bis IS NULL OR s.snooze_bis < ?) AND ("
         "datetime(s.letzter_besuch, '+' || s.intervall_tage || ' days') <= ? OR "
         "s.letzter_besuch IS NULL"
         ")",
-        (heute,)
+        (heute, heute)
     ).fetchone()[0]
     stats['visiten_faellig'] = faellige_hausbesuche + faellige_stationen
 
     return stats
+
+
+# ============================================================
+# Impfungen-Übersicht
+# ============================================================
+
+def get_alle_impfungen(status_filter=None):
+    """Holt alle Impfungen mit Patientennamen. Optional nach Status filtern."""
+    db = get_db()
+    sql = (
+        "SELECT i.id, i.patient_id, i.impftyp, i.ist_standardimpfung, "
+        "i.einverstaendnis_status, i.einverstaendnis_jahr, "
+        "i.plan_datum, i.status, i.durchfuehrung_datum, "
+        "i.naechste_faelligkeit, "
+        "p.vorname, p.nachname, "
+        "d.id AS dokument_id "
+        "FROM impfungen i "
+        "JOIN patienten p ON i.patient_id = p.id "
+        "LEFT JOIN dokumente d ON d.impfung_id = i.id "
+        "WHERE p.aktiv = 1"
+    )
+    params = []
+    if status_filter == 'offen':
+        sql += " AND i.status IN ('OFFEN', 'GEPLANT')"
+    elif status_filter == 'durchgefuehrt':
+        sql += " AND i.status = 'DURCHGEFUEHRT'"
+
+    sql += (
+        " ORDER BY "
+        "CASE WHEN i.status = 'DURCHGEFUEHRT' THEN 1 ELSE 0 END, "
+        "CASE WHEN i.naechste_faelligkeit IS NOT NULL THEN 0 ELSE 1 END, "
+        "i.naechste_faelligkeit ASC, "
+        "p.nachname, p.vorname"
+    )
+    return db.execute(sql, params).fetchall()
 
 
 # ============================================================
@@ -1021,13 +1085,14 @@ def get_faellige_patienten(stichtag=None):
         "LEFT JOIN stationen s ON p.station_id = s.id "
         "LEFT JOIN einrichtungen e ON s.einrichtung_id = e.id "
         "LEFT JOIN behandler b ON b.id = COALESCE(p.override_behandler_id, p.primaer_behandler_id, s.standard_behandler_id, e.standard_behandler_id) "
-        "WHERE p.aktiv = 1 AND p.wohnort_typ = 'ZUHAUSE' AND ("
+        "WHERE p.aktiv = 1 AND p.wohnort_typ = 'ZUHAUSE' "
+        "AND (p.snooze_bis IS NULL OR p.snooze_bis < ?) AND ("
         "(COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL AND COALESCE(p.intervall_tage, s.intervall_tage) > 0 AND "
         "datetime(p.letzter_besuch, '+' || COALESCE(p.intervall_tage, s.intervall_tage) || ' days') <= ?) OR "
         "(p.geplanter_besuch IS NOT NULL AND p.geplanter_besuch <= ?) OR "
         "(p.letzter_besuch IS NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL)"
         ") ORDER BY resolved_behandler_id, p.nachname",
-        (stichtag, stichtag)
+        (stichtag, stichtag, stichtag)
     ).fetchall()
 
 
@@ -1073,7 +1138,7 @@ def get_tagesplan(stichtag=None, praxis_lat=None, praxis_lon=None, transportmodi
     for s in faellige_stationen:
         d = dict(s)
         d['_typ'] = 'S'
-        d['besuchsdauer_minuten'] = 15
+        d['besuchsdauer_minuten'] = 60
         # Entfernung zur Praxis berechnen (fuer spaetere Radius-Pruefung)
         if d.get('latitude') and d.get('longitude'):
             d['entfernung_km'] = round(routing.haversine_distance(
@@ -1204,9 +1269,10 @@ def get_faellige_stationen(stichtag=None):
         "FROM stationen s "
         "JOIN einrichtungen e ON s.einrichtung_id = e.id "
         "LEFT JOIN behandler b ON b.id = COALESCE(s.override_behandler_id, s.standard_behandler_id, e.standard_behandler_id) "
-        "WHERE s.intervall_tage > 0 AND ("
+        "WHERE s.intervall_tage > 0 "
+        "AND (s.snooze_bis IS NULL OR s.snooze_bis < ?) AND ("
         "datetime(s.letzter_besuch, '+' || s.intervall_tage || ' days') <= ? OR "
         "s.letzter_besuch IS NULL"
         ") ORDER BY e.name, s.name",
-        (stichtag,)
+        (stichtag, stichtag)
     ).fetchall()

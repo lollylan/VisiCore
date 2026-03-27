@@ -7,61 +7,61 @@
 </div>
 
 <div class="stats-grid">
-    <div class="stat-card">
+    <a href="{{ url_for('patienten_liste') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon blue">👥</div>
         <div>
             <div class="stat-value">{{ stats.patienten_aktiv }}</div>
             <div class="stat-label">Aktive Patienten</div>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card">
+    <a href="{{ url_for('patienten_liste', wohnort='HEIM') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon purple">🏥</div>
         <div>
             <div class="stat-value">{{ stats.patienten_heim }}</div>
             <div class="stat-label">Heimbewohner</div>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card">
+    <a href="{{ url_for('patienten_liste', wohnort='ZUHAUSE') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon blue">🏠</div>
         <div>
             <div class="stat-value">{{ stats.patienten_zuhause }}</div>
             <div class="stat-label">Hausbesuche</div>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card">
+    <a href="{{ url_for('impfungen_liste') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon yellow">💉</div>
         <div>
             <div class="stat-value">{{ stats.impfungen_offen }}</div>
             <div class="stat-label">Offene Impfungen</div>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card">
+    <a href="{{ url_for('tagesplan') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon red">📅</div>
         <div>
             <div class="stat-value">{{ stats.visiten_faellig }}</div>
             <div class="stat-label">Fällige Visiten</div>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card">
+    <a href="{{ url_for('einrichtungen_liste') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon green">🏢</div>
         <div>
             <div class="stat-value">{{ stats.einrichtungen }}</div>
             <div class="stat-label">Einrichtungen</div>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card">
+    <a href="{{ url_for('behandler_liste') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon green">🩺</div>
         <div>
             <div class="stat-value">{{ stats.behandler }}</div>
             <div class="stat-label">Behandler</div>
         </div>
-    </div>
+    </a>
 </div>
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.25rem;">
