@@ -69,7 +69,12 @@ def main():
     load_dotenv(os.path.join(base_dir, '.env'))
 
     port = int(os.environ.get('PORT', 5001))
-    url = f'http://localhost:{port}'
+    # TLS-Zertifikat sicherstellen
+    from tls import ensure_certificate
+    data_dir = os.path.join(base_dir, 'data')
+    cert_path, key_path = ensure_certificate(data_dir)
+
+    url = f'https://localhost:{port}'
 
     # App importieren und erstellen
     from app import create_app
@@ -77,29 +82,32 @@ def main():
 
     # Browser nach kurzer Verzoegerung oeffnen
     def open_browser():
-        time.sleep(1.5)
+        time.sleep(2.0)
         webbrowser.open(url)
 
     threading.Thread(target=open_browser, daemon=True).start()
 
-    # Waitress-Server starten (Produktion)
-    from waitress import serve
-
     print(f'  Server laeuft: {url}')
+    print(f'  Im Netzwerk:   https://192.168.10.51:{port}')
     print()
     if first_run:
-        print('  +-----------------------------+')
-        print('  |  Erster Login:               |')
-        print('  |  Benutzer: admin             |')
-        print('  |  Passwort: admin             |')
-        print('  |  Bitte sofort aendern!       |')
-        print('  +-----------------------------+')
+        print('  +-------------------------------+')
+        print('  |  Erster Login:                 |')
+        print('  |  Benutzer: admin               |')
+        print('  |  Passwort: admin               |')
+        print('  |  (Passwortwechsel erforderlich) |')
+        print('  +-------------------------------+')
         print()
     print('  Dieses Fenster offen lassen,')
     print('  solange VisiCore benutzt wird.')
     print()
 
-    serve(app, host='0.0.0.0', port=port, threads=4)
+    # HTTPS-Server starten (werkzeug mit TLS)
+    from werkzeug.serving import run_simple
+    run_simple('0.0.0.0', port, app,
+               ssl_context=(cert_path, key_path),
+               threaded=True,
+               use_reloader=False)
 
 
 if __name__ == '__main__':

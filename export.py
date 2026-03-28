@@ -444,3 +444,91 @@ def generate_tagesplan_pdf(plan_data, praxis_name='Praxis'):
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
+
+WOCHENTAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
+
+
+def generate_kalender_pdf(kalender_daten, tage, titel='Besuchskalender', praxis_name='Praxis'):
+    """
+    Generiert ein PDF mit dem Besuchskalender.
+    kalender_daten: Dict {datum_str: [besuche]}
+    tage: Liste von Datum-Strings (YYYY-MM-DD)
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            leftMargin=1.5*cm, rightMargin=1.5*cm,
+                            topMargin=1.5*cm, bottomMargin=1.5*cm)
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('TitleCustom', parent=styles['Title'],
+                                  fontSize=16, spaceAfter=6*mm)
+    day_style = ParagraphStyle('DayHeader', parent=styles['Heading3'],
+                                fontSize=11, spaceAfter=2*mm, spaceBefore=4*mm,
+                                textColor=colors.HexColor('#2d3050'))
+    info_style = ParagraphStyle('Info', parent=styles['Normal'],
+                                 fontSize=9, textColor=colors.HexColor('#555555'))
+    cell_style = ParagraphStyle('Cell', parent=styles['Normal'], fontSize=8)
+    empty_style = ParagraphStyle('Empty', parent=styles['Normal'],
+                                  fontSize=8, textColor=colors.HexColor('#999999'))
+
+    elements = []
+    elements.append(Paragraph(titel, title_style))
+    elements.append(Paragraph(
+        f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')} | {praxis_name}",
+        info_style
+    ))
+    elements.append(Spacer(1, 6*mm))
+
+    for tag in tage:
+        besuche = kalender_daten.get(tag, [])
+        d = datetime.strptime(tag, '%Y-%m-%d')
+        wochentag = WOCHENTAGE[d.weekday()]
+        datum_fmt = d.strftime('%d.%m.%Y')
+
+        elements.append(Paragraph(
+            f"{wochentag}, {datum_fmt} ({len(besuche)} Besuche)",
+            day_style
+        ))
+
+        if not besuche:
+            elements.append(Paragraph("Keine Besuche geplant.", empty_style))
+            elements.append(Spacer(1, 2*mm))
+            continue
+
+        header = ['Typ', 'Name', 'Behandler']
+        table_data = [header]
+
+        for b in besuche:
+            typ = 'Station' if b['typ'] == 'S' else b.get('wohnort_typ', '').capitalize()
+            name = b.get('name', '')
+            behandler = b.get('behandler_name', '') or '\u2013'
+
+            table_data.append([
+                Paragraph(typ, cell_style),
+                Paragraph(name, cell_style),
+                Paragraph(behandler, cell_style),
+            ])
+
+        col_widths = [2.5*cm, 8.5*cm, 5*cm]
+        table = Table(table_data, colWidths=col_widths, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d3050')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 2*mm))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer

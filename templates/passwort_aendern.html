@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login – VisiCore</title>
+    <title>Passwort aendern – VisiCore</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,8 +16,8 @@
     <div class="login-container">
         <div class="login-card">
             <div class="logo">
-                <h1>⚕️ VisiCore</h1>
-                <p>Visitenplanung &amp; Impfmanagement</p>
+                <h1>🔒 Passwort aendern</h1>
+                <p>Bitte waehlen Sie ein sicheres Passwort</p>
             </div>
 
             {% with messages = get_flashed_messages(with_categories=true) %}
@@ -31,29 +31,42 @@
             {% endif %}
             {% endwith %}
 
-            <form method="POST" action="{{ url_for('login') }}">
+            <form method="POST" action="{{ url_for('passwort_aendern') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                 <div class="form-group">
-                    <label class="form-label" for="benutzername">Benutzername</label>
-                    <input type="text" id="benutzername" name="benutzername" class="form-control" required autofocus
-                        autocomplete="username">
+                    <label class="form-label" for="aktuelles_passwort">Aktuelles Passwort</label>
+                    <input type="password" id="aktuelles_passwort" name="aktuelles_passwort"
+                        class="form-control" required autofocus autocomplete="current-password">
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="passwort">Passwort</label>
-                    <input type="password" id="passwort" name="passwort" class="form-control" required
-                        autocomplete="current-password">
+                    <label class="form-label" for="neues_passwort">Neues Passwort</label>
+                    <input type="password" id="neues_passwort" name="neues_passwort"
+                        class="form-control" required autocomplete="new-password"
+                        minlength="8">
+                    <small style="color:var(--text-muted); font-size:0.75rem;">
+                        Mindestens 8 Zeichen
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="passwort_bestaetigung">Passwort bestaetigen</label>
+                    <input type="password" id="passwort_bestaetigung" name="passwort_bestaetigung"
+                        class="form-control" required autocomplete="new-password"
+                        minlength="8">
                 </div>
 
                 <button type="submit" class="btn btn-primary"
                     style="width:100%; justify-content:center; margin-top:0.5rem;">
-                    Anmelden
+                    Passwort aendern
                 </button>
             </form>
 
-            <p style="text-align:center; margin-top:1.5rem; font-size:0.75rem; color:var(--text-muted);">
-                VisiCore &ndash; Visitenplanung &amp; Impfmanagement
+            <p style="text-align:center; margin-top:1rem;">
+                <a href="{{ url_for('logout') }}" style="color:var(--text-muted); font-size:0.8rem;">
+                    Abmelden
+                </a>
             </p>
         </div>
     </div>

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Kalender – {{ app_name }}{% endblock %}
+
+{% block head %}
+<style>
+.kalender-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+.kalender-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+.kalender-header {
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: 0.4rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+.kalender-tag {
+    background: var(--bg-card, var(--bg-secondary));
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 8px;
+    min-height: 120px;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+}
+.kalender-tag.heute {
+    border: 2px solid var(--primary);
+    background: rgba(37, 99, 235, 0.04);
+}
+.kalender-tag.wochenende {
+    background: var(--bg-secondary, #f9fafb);
+    opacity: 0.7;
+}
+.kalender-tag.vergangen {
+    opacity: 0.5;
+}
+.tag-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.tag-datum {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    text-decoration: none;
+}
+.tag-datum:hover {
+    color: var(--primary);
+}
+.tag-header .badge {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+}
+.besuch-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0;
+    font-size: 0.8rem;
+    line-height: 1.3;
+}
+.besuch-item a {
+    text-decoration: none;
+    color: var(--text-primary);
+}
+.besuch-item a:hover {
+    color: var(--primary);
+}
+.behandler-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.typ-icon {
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+.besuche-liste {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 200px;
+}
+.legende {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.legende-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.pdf-dropdown {
+    position: relative;
+    display: inline-block;
+}
+.pdf-dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    min-width: 180px;
+    z-index: 100;
+    padding: 0.3rem 0;
+}
+.pdf-dropdown:hover .pdf-dropdown-content,
+.pdf-dropdown:focus-within .pdf-dropdown-content {
+    display: block;
+}
+.pdf-dropdown-content a {
+    display: block;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+.pdf-dropdown-content a:hover {
+    background: var(--bg-secondary, #f3f4f6);
+}
+
+@media (max-width: 900px) {
+    .kalender-grid {
+        grid-template-columns: 1fr;
+    }
+    .kalender-header {
+        display: none;
+    }
+    .kalender-tag {
+        min-height: auto;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📅 Kalender</h1>
+    <div class="pdf-dropdown">
+        <button class="btn btn-outline btn-sm">📄 PDF Export ▾</button>
+        <div class="pdf-dropdown-content">
+            <a href="{{ url_for('kalender_pdf', zeitraum='heute') }}">Heute</a>
+            <a href="{{ url_for('kalender_pdf', zeitraum='morgen') }}">Morgen</a>
+            <a href="{{ url_for('kalender_pdf', zeitraum='uebermorgen') }}">Übermorgen</a>
+            <a href="{{ url_for('kalender_pdf', zeitraum='7tage') }}">Nächste 7 Tage</a>
+            <a href="{{ url_for('kalender_pdf', zeitraum='14tage') }}">Nächste 14 Tage</a>
+            <a href="{{ url_for('kalender_pdf', zeitraum='monat') }}">Nächster Monat</a>
+        </div>
+    </div>
+</div>
+
+<div class="kalender-nav">
+    <a href="{{ url_for('kalender', start=prev_start) }}" class="btn btn-sm btn-outline">◀ 4 Wochen</a>
+    <a href="{{ url_for('kalender', start=heute_start) }}" class="btn btn-sm {% if start == heute_start %}btn-primary{% else %}btn-outline{% endif %}">Heute</a>
+    <a href="{{ url_for('kalender', start=next_start) }}" class="btn btn-sm btn-outline">4 Wochen ▶</a>
+    <span style="margin-left:0.5rem; color:var(--text-muted); font-size:0.85rem;">
+        {{ tage[0]|datum }} – {{ tage[-1]|datum }}
+    </span>
+</div>
+
+{% set wochentage = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] %}
+
+<div class="kalender-grid">
+    {% for wt in wochentage %}
+    <div class="kalender-header">{{ wt }}</div>
+    {% endfor %}
+
+    {% for tag in tage %}
+    {% set besuche = kalender_daten[tag] %}
+    {% set tag_parts = tag.split('-') %}
+    {% set tag_idx = loop.index0 % 7 %}
+    {% set ist_wochenende = tag_idx >= 5 %}
+    <div class="kalender-tag{% if tag == heute %} heute{% endif %}{% if ist_wochenende %} wochenende{% endif %}{% if tag < heute %} vergangen{% endif %}">
+        <div class="tag-header">
+            <a href="{{ url_for('tagesplan', datum=tag) }}" class="tag-datum" title="Tagesplan oeffnen">
+                {{ tag_parts[2]|int }}.{{ tag_parts[1]|int }}.
+            </a>
+            {% if besuche %}
+            <span class="badge" style="background:var(--primary); color:#fff;">{{ besuche|length }}</span>
+            {% endif %}
+        </div>
+        <div class="besuche-liste">
+            {% for b in besuche %}
+            <div class="besuch-item">
+                <span class="behandler-dot" style="background:{{ b.behandler_farbe or '#94a3b8' }};"></span>
+                <span class="typ-icon">{% if b.typ == 'S' %}🏥{% elif b.wohnort_typ == 'ZUHAUSE' %}🏠{% else %}🏥{% endif %}</span>
+                {% if b.typ == 'P' %}
+                <a href="{{ url_for('patient_detail', id=b.id) }}">{{ b.name }}</a>
+                {% else %}
+                <span>{{ b.name }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="legende" style="margin-top:1rem;">
+    <div class="legende-item">🏠 Hausbesuch</div>
+    <div class="legende-item">🏥 Heim / Station</div>
+    <div class="legende-item"><span class="behandler-dot" style="background:#94a3b8; display:inline-block;"></span> Behandler-Farbe</div>
+</div>
+{% endblock %}

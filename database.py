@@ -192,6 +192,12 @@ def init_db():
     except sqlcipher3.OperationalError:
         pass  # Spalte existiert bereits
 
+    # Migration: Passwort-Aenderungs-Flag fuer Benutzer
+    try:
+        db.execute("ALTER TABLE users ADD COLUMN passwort_muss_geaendert_werden INTEGER DEFAULT 0")
+    except sqlcipher3.OperationalError:
+        pass  # Spalte existiert bereits
+
     # Migration: 'ANGEFRAGT' zu einverstaendnis_status CHECK-Constraint hinzufügen
     schema_row = db.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='impfungen'"
@@ -356,6 +362,26 @@ def create_user(benutzername, passwort_hash, rolle='nutzer'):
 def delete_user(user_id):
     db = get_db()
     db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    db.commit()
+
+
+def update_passwort(user_id, neuer_hash):
+    """Aktualisiert das Passwort und setzt das Aenderungs-Flag zurueck."""
+    db = get_db()
+    db.execute(
+        "UPDATE users SET passwort_hash = ?, passwort_muss_geaendert_werden = 0 WHERE id = ?",
+        (neuer_hash, user_id)
+    )
+    db.commit()
+
+
+def set_passwort_muss_geaendert_werden(user_id, flag):
+    """Setzt das Flag, ob der Benutzer sein Passwort aendern muss."""
+    db = get_db()
+    db.execute(
+        "UPDATE users SET passwort_muss_geaendert_werden = ? WHERE id = ?",
+        (1 if flag else 0, user_id)
+    )
     db.commit()
 
 
@@ -644,6 +670,85 @@ def get_inaktive_patienten():
         "LEFT JOIN einrichtungen e ON s.einrichtung_id = e.id "
         "WHERE p.aktiv = 0 ORDER BY p.nachname"
     ).fetchall()
+
+
+def get_kalender_besuche(von, bis):
+    """Alle faelligen Besuche (Patienten + Stationen) im Zeitraum [von, bis]."""
+    db = get_db()
+    ergebnis = []
+
+    # Patienten mit naechster_besuch im Bereich
+    patienten = db.execute(
+        "SELECT * FROM ("
+        "  SELECT p.id, p.nachname, p.vorname, p.wohnort_typ, "
+        "  p.station_id, s.name as station_name, e.name as einrichtung_name, "
+        "  COALESCE(p.primaer_behandler_id, s.standard_behandler_id, e.standard_behandler_id) as resolved_behandler_id, "
+        "  b.name as behandler_name, b.farbe as behandler_farbe, "
+        "  CASE "
+        "    WHEN p.snooze_bis IS NOT NULL AND p.snooze_bis >= date('now') THEN p.snooze_bis "
+        "    WHEN p.geplanter_besuch IS NOT NULL THEN p.geplanter_besuch "
+        "    WHEN p.letzter_besuch IS NOT NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+        "      THEN date(p.letzter_besuch, '+' || COALESCE(p.intervall_tage, s.intervall_tage) || ' days') "
+        "    WHEN p.letzter_besuch IS NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+        "      THEN date('now') "
+        "    ELSE NULL END as naechster_besuch "
+        "  FROM patienten p "
+        "  LEFT JOIN stationen s ON p.station_id = s.id "
+        "  LEFT JOIN einrichtungen e ON s.einrichtung_id = e.id "
+        "  LEFT JOIN behandler b ON b.id = COALESCE(p.primaer_behandler_id, s.standard_behandler_id, e.standard_behandler_id) "
+        "  WHERE p.aktiv = 1"
+        ") WHERE naechster_besuch BETWEEN ? AND ?",
+        (von, bis)
+    ).fetchall()
+
+    for p in patienten:
+        ergebnis.append({
+            'datum': p['naechster_besuch'],
+            'typ': 'P',
+            'id': p['id'],
+            'name': f"{p['nachname']}, {p['vorname']}",
+            'wohnort_typ': p['wohnort_typ'],
+            'station_id': p['station_id'],
+            'station_name': p['station_name'],
+            'einrichtung_name': p['einrichtung_name'],
+            'behandler_name': p['behandler_name'],
+            'behandler_farbe': p['behandler_farbe'],
+        })
+
+    # Stationen mit naechster_besuch im Bereich
+    stationen = db.execute(
+        "SELECT * FROM ("
+        "  SELECT s.id, s.name, e.name as einrichtung_name, "
+        "  COALESCE(s.standard_behandler_id, e.standard_behandler_id) as resolved_behandler_id, "
+        "  b.name as behandler_name, b.farbe as behandler_farbe, "
+        "  CASE "
+        "    WHEN s.snooze_bis IS NOT NULL AND s.snooze_bis >= date('now') THEN s.snooze_bis "
+        "    WHEN s.letzter_besuch IS NOT NULL AND s.intervall_tage IS NOT NULL "
+        "      THEN date(s.letzter_besuch, '+' || s.intervall_tage || ' days') "
+        "    ELSE NULL END as naechster_besuch "
+        "  FROM stationen s "
+        "  JOIN einrichtungen e ON s.einrichtung_id = e.id "
+        "  LEFT JOIN behandler b ON b.id = COALESCE(s.standard_behandler_id, e.standard_behandler_id) "
+        "  WHERE s.intervall_tage > 0"
+        ") WHERE naechster_besuch BETWEEN ? AND ?",
+        (von, bis)
+    ).fetchall()
+
+    for s in stationen:
+        ergebnis.append({
+            'datum': s['naechster_besuch'],
+            'typ': 'S',
+            'id': s['id'],
+            'name': f"{s['einrichtung_name']} / {s['name']}",
+            'wohnort_typ': 'HEIM',
+            'station_name': s['name'],
+            'einrichtung_name': s['einrichtung_name'],
+            'behandler_name': s['behandler_name'],
+            'behandler_farbe': s['behandler_farbe'],
+        })
+
+    ergebnis.sort(key=lambda x: (x['datum'], x['name']))
+    return ergebnis
 
 
 def create_patient(nachname, vorname, wohnort_typ='ZUHAUSE', geburtsdatum=None,

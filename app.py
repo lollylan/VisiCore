@@ -22,6 +22,9 @@ from flask_bcrypt import Bcrypt
 from flask_wtf import CSRFProtect
 from dotenv import load_dotenv
 
+import time as _time
+from collections import defaultdict
+
 import database as db
 import routing
 import export as pdf_export
@@ -61,6 +64,15 @@ def create_app():
     app.config['DB_KEY'] = os.environ.get('DB_KEY', 'dev-db-key')
     app.config['DB_PATH'] = os.path.join(get_base_dir(), 'data', 'visicore.db')
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB Upload-Limit
+
+    # Session-Sicherheit
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+    app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+    app.config['REMEMBER_COOKIE_SECURE'] = True
+    app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 
     bcrypt = Bcrypt(app)
     csrf = CSRFProtect(app)
@@ -106,6 +118,27 @@ def create_app():
             'current_year': date.today().year,
             'now': datetime.now
         }
+
+    # ── Security Headers ──────────────────────────────────
+    @app.after_request
+    def security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://unpkg.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: https://*.tile.openstreetmap.org; "
+            "connect-src 'self' https://*.tile.openstreetmap.org; "
+            "frame-ancestors 'none'"
+        )
+        if request.is_secure:
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
 
     # ── Jinja-Filter ──────────────────────────────────────
     @app.template_filter('from_json')
@@ -194,19 +227,50 @@ def create_app():
     # AUTH ROUTES
     # ════════════════════════════════════════════════════════
 
+    # Rate-Limiting fuer Login
+    _login_attempts = defaultdict(list)
+    _LOGIN_MAX = 5
+    _LOGIN_WINDOW = 300       # 5 Minuten
+    _LOGIN_LOCKOUT = 600      # 10 Minuten Sperre
+
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         if current_user.is_authenticated:
             return redirect(url_for('dashboard'))
+
         if request.method == 'POST':
+            client_ip = request.remote_addr
+            now = _time.time()
+
+            # Alte Eintraege aufraumen
+            _login_attempts[client_ip] = [
+                t for t in _login_attempts[client_ip]
+                if now - t < _LOGIN_LOCKOUT
+            ]
+
+            # Sperre pruefen
+            recent = [t for t in _login_attempts[client_ip] if now - t < _LOGIN_WINDOW]
+            if len(recent) >= _LOGIN_MAX:
+                verbleibend = int((_LOGIN_LOCKOUT - (now - recent[0])) / 60) + 1
+                flash(f'Zu viele Anmeldeversuche. Bitte {verbleibend} Minuten warten.', 'danger')
+                return render_template('login.html'), 429
+
             benutzername = request.form.get('benutzername', '').strip()
             passwort = request.form.get('passwort', '')
             user_row = db.get_user_by_name(benutzername)
             if user_row and bcrypt.check_password_hash(user_row['passwort_hash'], passwort):
+                _login_attempts.pop(client_ip, None)
                 login_user(User(user_row))
                 protokoll('LOGIN', 'Benutzer', user_row['id'], benutzername)
                 return redirect(url_for('dashboard'))
-            flash('Benutzername oder Passwort falsch.', 'danger')
+
+            _login_attempts[client_ip].append(now)
+            versuche_uebrig = _LOGIN_MAX - len(recent) - 1
+            if versuche_uebrig > 0:
+                flash(f'Benutzername oder Passwort falsch. Noch {versuche_uebrig} Versuche.', 'danger')
+            else:
+                flash('Benutzername oder Passwort falsch.', 'danger')
+
         return render_template('login.html')
 
     @app.route('/logout')
@@ -216,6 +280,47 @@ def create_app():
         logout_user()
         flash('Erfolgreich abgemeldet.', 'success')
         return redirect(url_for('login'))
+
+    @app.route('/passwort-aendern', methods=['GET', 'POST'])
+    @login_required
+    def passwort_aendern():
+        if request.method == 'POST':
+            aktuelles = request.form.get('aktuelles_passwort', '')
+            neues = request.form.get('neues_passwort', '')
+            bestaetigung = request.form.get('passwort_bestaetigung', '')
+
+            user_row = db.get_user_by_id(current_user.id)
+            if not bcrypt.check_password_hash(user_row['passwort_hash'], aktuelles):
+                flash('Aktuelles Passwort ist falsch.', 'danger')
+                return render_template('passwort_aendern.html')
+            if len(neues) < 8:
+                flash('Neues Passwort muss mindestens 8 Zeichen lang sein.', 'danger')
+                return render_template('passwort_aendern.html')
+            if neues != bestaetigung:
+                flash('Passwort und Bestaetigung stimmen nicht ueberein.', 'danger')
+                return render_template('passwort_aendern.html')
+            if neues == 'admin':
+                flash('Das Standard-Passwort kann nicht erneut verwendet werden.', 'danger')
+                return render_template('passwort_aendern.html')
+
+            pw_hash = bcrypt.generate_password_hash(neues).decode('utf-8')
+            db.update_passwort(current_user.id, pw_hash)
+            protokoll('PASSWORT_GEAENDERT', 'Benutzer', current_user.id, current_user.benutzername)
+            flash('Passwort erfolgreich geaendert.', 'success')
+            return redirect(url_for('dashboard'))
+        return render_template('passwort_aendern.html')
+
+    # ── Passwort-Aenderungs-Interceptor ──────────────────
+    @app.before_request
+    def check_passwort_aenderung():
+        if not current_user.is_authenticated:
+            return
+        if request.endpoint in ('passwort_aendern', 'logout', 'static'):
+            return
+        user_row = db.get_user_by_id(current_user.id)
+        if user_row and user_row['passwort_muss_geaendert_werden']:
+            flash('Bitte aendern Sie Ihr Standard-Passwort.', 'warning')
+            return redirect(url_for('passwort_aendern'))
 
     # ════════════════════════════════════════════════════════
     # DASHBOARD
@@ -1357,6 +1462,136 @@ def create_app():
                                faellige_stationen=faellige_stationen,
                                alle_behandler=alle_behandler)
 
+    # KALENDER
+    # ════════════════════════════════════════════════════════
+
+    @app.route('/kalender')
+    @login_required
+    def kalender():
+        heute = date.today()
+        start_param = request.args.get('start')
+        if start_param:
+            try:
+                start = date.fromisoformat(start_param)
+            except ValueError:
+                start = heute - timedelta(days=heute.weekday())
+        else:
+            start = heute - timedelta(days=heute.weekday())  # Montag der aktuellen Woche
+
+        tage = []
+        for i in range(28):
+            tag = start + timedelta(days=i)
+            tage.append(tag.isoformat())
+
+        besuche = db.get_kalender_besuche(tage[0], tage[-1])
+
+        # Stations-Besuche pro Tag ermitteln (fuer Deduplizierung)
+        stations_pro_tag = {}
+        for b in besuche:
+            if b['typ'] == 'S':
+                stations_pro_tag.setdefault(b['datum'], set()).add(b['id'])
+
+        # Gruppieren nach Datum — Heim-Patienten ausblenden wenn ihre Station am selben Tag faellig ist
+        kalender_daten = {}
+        for tag in tage:
+            kalender_daten[tag] = []
+        for b in besuche:
+            if b['datum'] not in kalender_daten:
+                continue
+            if (b['typ'] == 'P' and b['wohnort_typ'] == 'HEIM'
+                    and b.get('station_id')
+                    and b['station_id'] in stations_pro_tag.get(b['datum'], set())):
+                continue
+            kalender_daten[b['datum']].append(b)
+
+        prev_start = (start - timedelta(days=28)).isoformat()
+        next_start = (start + timedelta(days=28)).isoformat()
+        heute_start = (heute - timedelta(days=heute.weekday())).isoformat()
+
+        return render_template('kalender.html',
+                               tage=tage,
+                               kalender_daten=kalender_daten,
+                               heute=heute.isoformat(),
+                               start=start.isoformat(),
+                               prev_start=prev_start,
+                               next_start=next_start,
+                               heute_start=heute_start)
+
+    KALENDER_ZEITRAEUME = {
+        'heute': ('Heute', 1),
+        'morgen': ('Morgen', 1),
+        'uebermorgen': ('Übermorgen', 1),
+        '7tage': ('Nächste 7 Tage', 7),
+        '14tage': ('Nächste 14 Tage', 14),
+        'monat': ('Nächster Monat', 30),
+    }
+
+    @app.route('/kalender/pdf')
+    @login_required
+    def kalender_pdf():
+        heute = date.today()
+        zeitraum = request.args.get('zeitraum', '7tage')
+
+        if zeitraum == 'heute':
+            von = heute
+            bis = heute
+            titel = f"Besuchsplan: Heute ({von.strftime('%d.%m.%Y')})"
+        elif zeitraum == 'morgen':
+            von = heute + timedelta(days=1)
+            bis = von
+            titel = f"Besuchsplan: Morgen ({von.strftime('%d.%m.%Y')})"
+        elif zeitraum == 'uebermorgen':
+            von = heute + timedelta(days=2)
+            bis = von
+            titel = f"Besuchsplan: Übermorgen ({von.strftime('%d.%m.%Y')})"
+        elif zeitraum == '14tage':
+            von = heute
+            bis = heute + timedelta(days=13)
+            titel = f"Besuchsplan: {von.strftime('%d.%m.')} – {bis.strftime('%d.%m.%Y')}"
+        elif zeitraum == 'monat':
+            von = heute
+            bis = heute + timedelta(days=29)
+            titel = f"Besuchsplan: {von.strftime('%d.%m.')} – {bis.strftime('%d.%m.%Y')}"
+        else:  # 7tage
+            von = heute
+            bis = heute + timedelta(days=6)
+            titel = f"Besuchsplan: {von.strftime('%d.%m.')} – {bis.strftime('%d.%m.%Y')}"
+
+        tage = []
+        d = von
+        while d <= bis:
+            tage.append(d.isoformat())
+            d += timedelta(days=1)
+
+        besuche = db.get_kalender_besuche(tage[0], tage[-1])
+
+        # Stations-Deduplizierung (wie in kalender())
+        stations_pro_tag = {}
+        for b in besuche:
+            if b['typ'] == 'S':
+                stations_pro_tag.setdefault(b['datum'], set()).add(b['id'])
+
+        kalender_daten = {}
+        for tag in tage:
+            kalender_daten[tag] = []
+        for b in besuche:
+            if b['datum'] not in kalender_daten:
+                continue
+            if (b['typ'] == 'P' and b['wohnort_typ'] == 'HEIM'
+                    and b.get('station_id')
+                    and b['station_id'] in stations_pro_tag.get(b['datum'], set())):
+                continue
+            kalender_daten[b['datum']].append(b)
+
+        praxis_name = db.get_einstellung('praxis_name') or db.get_einstellung('praxis_stadt') or os.environ.get('PRAXIS_STADT', 'Praxis')
+        buf = pdf_export.generate_kalender_pdf(kalender_daten, tage, titel, praxis_name)
+        return send_file(
+            buf,
+            download_name=f'besuchsplan_{von.isoformat()}_{bis.isoformat()}.pdf',
+            mimetype='application/pdf',
+            as_attachment=True
+        )
+
     @app.route('/tagesplan/pdf')
     @login_required
     def tagesplan_pdf():
@@ -1567,6 +1802,10 @@ def create_app():
         if not db.get_all_users():
             pw_hash = bcrypt.generate_password_hash('admin').decode('utf-8')
             db.create_user('admin', pw_hash, 'admin')
+            # Erzwinge Passwortwechsel beim ersten Login
+            admin_user = db.get_user_by_name('admin')
+            if admin_user:
+                db.set_passwort_muss_geaendert_werden(admin_user['id'], True)
 
     return app
 
@@ -1577,6 +1816,8 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    # Im Entwicklungsmodus mit Flask-Dev-Server
+    # Im Entwicklungsmodus mit Flask-Dev-Server (HTTPS)
     app_port = int(os.environ.get('PORT', 5001))
-    app.run(host='0.0.0.0', port=app_port, debug=True)
+    from tls import ensure_certificate
+    cert, key = ensure_certificate(os.path.join(get_base_dir(), 'data'))
+    app.run(host='0.0.0.0', port=app_port, debug=True, ssl_context=(cert, key))

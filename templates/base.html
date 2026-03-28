@@ -38,6 +38,10 @@
                         class="nav-link {% if 'tagesplan' in request.endpoint|default('') %}active{% endif %}">
                         <span class="nav-icon">🗓️</span> Tagesplan
                     </a>
+                    <a href="{{ url_for('kalender') }}"
+                        class="nav-link {% if request.endpoint == 'kalender' %}active{% endif %}">
+                        <span class="nav-icon">📅</span> Kalender
+                    </a>
                 </div>
 
                 <div class="nav-section">
