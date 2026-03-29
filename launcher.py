@@ -46,6 +46,20 @@ def ensure_setup(base_dir):
     return first_run
 
 
+def get_local_ips():
+    """Ermittelt lokale Netzwerk-IPs fuer die Anzeige."""
+    ips = []
+    import socket
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if not ip.startswith('127.'):
+                ips.append(ip)
+    except Exception:
+        pass
+    return list(set(ips)) or ['(nicht ermittelt)']
+
+
 def main():
     base_dir = get_base_dir()
     os.chdir(base_dir)
@@ -56,58 +70,69 @@ def main():
     print('  =============================')
     print()
 
-    # Ersteinrichtung
-    first_run = ensure_setup(base_dir)
-    if first_run:
-        print('  Ersteinrichtung abgeschlossen!')
-        print('  Konfiguration: .env')
-        print('  Datenbank:     data/visicore.db')
+    try:
+        # Ersteinrichtung
+        first_run = ensure_setup(base_dir)
+        if first_run:
+            print('  Ersteinrichtung abgeschlossen!')
+            print('  Konfiguration: .env')
+            print('  Datenbank:     data/visicore.db')
+            print()
+
+        # .env laden
+        from dotenv import load_dotenv
+        load_dotenv(os.path.join(base_dir, '.env'))
+
+        port = int(os.environ.get('PORT', 5001))
+        # TLS-Zertifikat sicherstellen
+        from tls import ensure_certificate
+        data_dir = os.path.join(base_dir, 'data')
+        cert_path, key_path = ensure_certificate(data_dir)
+
+        url = f'https://localhost:{port}'
+
+        # App importieren und erstellen
+        from app import create_app
+        app = create_app()
+
+        # Browser nach kurzer Verzoegerung oeffnen
+        def open_browser():
+            time.sleep(2.0)
+            webbrowser.open(url)
+
+        threading.Thread(target=open_browser, daemon=True).start()
+
+        ips = get_local_ips()
+        print(f'  Server laeuft: {url}')
+        for ip in ips:
+            print(f'  Im Netzwerk:   https://{ip}:{port}')
+        print()
+        if first_run:
+            print('  +-------------------------------+')
+            print('  |  Erster Login:                 |')
+            print('  |  Benutzer: admin               |')
+            print('  |  Passwort: admin               |')
+            print('  |  (Passwortwechsel erforderlich) |')
+            print('  +-------------------------------+')
+            print()
+        print('  Dieses Fenster offen lassen,')
+        print('  solange VisiCore benutzt wird.')
         print()
 
-    # .env laden
-    from dotenv import load_dotenv
-    load_dotenv(os.path.join(base_dir, '.env'))
+        # HTTPS-Server starten (werkzeug mit TLS)
+        from werkzeug.serving import run_simple
+        run_simple('0.0.0.0', port, app,
+                   ssl_context=(cert_path, key_path),
+                   threaded=True,
+                   use_reloader=False)
 
-    port = int(os.environ.get('PORT', 5001))
-    # TLS-Zertifikat sicherstellen
-    from tls import ensure_certificate
-    data_dir = os.path.join(base_dir, 'data')
-    cert_path, key_path = ensure_certificate(data_dir)
-
-    url = f'https://localhost:{port}'
-
-    # App importieren und erstellen
-    from app import create_app
-    app = create_app()
-
-    # Browser nach kurzer Verzoegerung oeffnen
-    def open_browser():
-        time.sleep(2.0)
-        webbrowser.open(url)
-
-    threading.Thread(target=open_browser, daemon=True).start()
-
-    print(f'  Server laeuft: {url}')
-    print(f'  Im Netzwerk:   https://192.168.10.51:{port}')
-    print()
-    if first_run:
-        print('  +-------------------------------+')
-        print('  |  Erster Login:                 |')
-        print('  |  Benutzer: admin               |')
-        print('  |  Passwort: admin               |')
-        print('  |  (Passwortwechsel erforderlich) |')
-        print('  +-------------------------------+')
+    except Exception as e:
         print()
-    print('  Dieses Fenster offen lassen,')
-    print('  solange VisiCore benutzt wird.')
-    print()
-
-    # HTTPS-Server starten (werkzeug mit TLS)
-    from werkzeug.serving import run_simple
-    run_simple('0.0.0.0', port, app,
-               ssl_context=(cert_path, key_path),
-               threaded=True,
-               use_reloader=False)
+        print('  !!  FEHLER  !!')
+        print(f'  {e}')
+        print()
+        input('  Druecken Sie Enter zum Beenden...')
+        sys.exit(1)
 
 
 if __name__ == '__main__':
