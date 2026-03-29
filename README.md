@@ -70,11 +70,17 @@ Login: `admin` / `admin` (Passwortwechsel wird erzwungen).
 - Klickbare Statistik-Kacheln mit Direktlinks
 - Warnung bei Standard-Admin-Passwort
 
+### Backup & Transfer
+- Lokale Backups fuer Sicherungskopien auf demselben System
+- Passwortgeschuetzte Transportpakete (.visicore) fuer Transfer zwischen Rechnern
+- Automatische Umschluesselung: interner DB-Key verlaeesst nie das System
+- Validierung beim Import mit klaren Fehlermeldungen
+
 ### Admin
 - Nutzerverwaltung (Admin/User-Rollen)
 - Passwort-aendern Seite
 - Aktivitaets-Protokoll (Audit-Log)
-- Datenbank-Backup & Restore
+- Datenbank-Backup & Restore mit Transportpaket-Funktion
 - Einstellungen
 
 ---
