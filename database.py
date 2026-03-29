@@ -625,6 +625,56 @@ def get_patienten(nur_aktive=True, wohnort_typ=None, station_id=None):
     return db.execute(sql, params).fetchall()
 
 
+def get_patienten_fuer_export(einrichtung_id=None, station_id=None,
+                               behandler_id=None, wohnort_typ=None,
+                               nur_faellige=False):
+    """Holt Patienten mit konfigurierbaren Filtern fuer den PDF-Export."""
+    db = get_db()
+    sql = "SELECT p.*, s.name as station_name, e.name as einrichtung_name, "
+    sql += "e.id as einrichtung_id_resolved, "
+    sql += "COALESCE(p.intervall_tage, s.intervall_tage) as resolved_intervall_tage, "
+    sql += "b.name as behandler_name, "
+    sql += "CASE "
+    sql += "  WHEN p.snooze_bis IS NOT NULL AND p.snooze_bis >= date('now') THEN p.snooze_bis "
+    sql += "  WHEN p.geplanter_besuch IS NOT NULL THEN p.geplanter_besuch "
+    sql += "  WHEN p.letzter_besuch IS NOT NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+    sql += "    THEN date(p.letzter_besuch, '+' || COALESCE(p.intervall_tage, s.intervall_tage) || ' days') "
+    sql += "  WHEN p.letzter_besuch IS NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+    sql += "    THEN date('now') "
+    sql += "  ELSE NULL END as naechster_besuch "
+    sql += "FROM patienten p "
+    sql += "LEFT JOIN stationen s ON p.station_id = s.id "
+    sql += "LEFT JOIN einrichtungen e ON s.einrichtung_id = e.id "
+    sql += "LEFT JOIN behandler b ON b.id = COALESCE(p.primaer_behandler_id, s.standard_behandler_id, e.standard_behandler_id) "
+    where = ["p.aktiv = 1"]
+    params = []
+    if einrichtung_id:
+        where.append("s.einrichtung_id = ?")
+        params.append(einrichtung_id)
+    if station_id:
+        where.append("p.station_id = ?")
+        params.append(station_id)
+    if behandler_id:
+        where.append("COALESCE(p.primaer_behandler_id, s.standard_behandler_id, e.standard_behandler_id) = ?")
+        params.append(behandler_id)
+    if wohnort_typ:
+        where.append("p.wohnort_typ = ?")
+        params.append(wohnort_typ)
+    if nur_faellige:
+        sql_nb = ("CASE "
+                  "  WHEN p.snooze_bis IS NOT NULL AND p.snooze_bis >= date('now') THEN p.snooze_bis "
+                  "  WHEN p.geplanter_besuch IS NOT NULL THEN p.geplanter_besuch "
+                  "  WHEN p.letzter_besuch IS NOT NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+                  "    THEN date(p.letzter_besuch, '+' || COALESCE(p.intervall_tage, s.intervall_tage) || ' days') "
+                  "  WHEN p.letzter_besuch IS NULL AND COALESCE(p.intervall_tage, s.intervall_tage) IS NOT NULL "
+                  "    THEN date('now') "
+                  "  ELSE NULL END")
+        where.append(f"({sql_nb}) <= date('now')")
+    sql += "WHERE " + " AND ".join(where) + " "
+    sql += "ORDER BY e.name, s.name, p.nachname, p.vorname"
+    return db.execute(sql, params).fetchall()
+
+
 def get_patient(patient_id):
     db = get_db()
     return db.execute(

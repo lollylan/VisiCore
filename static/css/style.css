@@ -613,6 +613,86 @@ textarea.form-control {
     to { opacity: 1; transform: translateX(0); }
 }
 
+/* Admin-Warnung Banner */
+.admin-warning-banner {
+    background: #7f1d1d;
+    border: 1px solid #dc2626;
+    border-radius: var(--radius-sm);
+    margin: 1rem 1.5rem 0;
+    padding: 0;
+    animation: flashIn 0.4s ease;
+}
+.admin-warning-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+}
+.admin-warning-icon {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+    line-height: 1.4;
+}
+.admin-warning-text {
+    flex: 1;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #fecaca;
+}
+.admin-warning-text strong {
+    color: #fca5a5;
+}
+.admin-warning-text code {
+    background: rgba(255,255,255,0.12);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-size: 0.82em;
+    color: #fde68a;
+}
+.admin-warning-text a {
+    color: #93c5fd;
+    text-decoration: underline;
+    font-weight: 500;
+}
+.admin-warning-text a:hover {
+    color: #bfdbfe;
+}
+.admin-warning-close {
+    background: none;
+    border: none;
+    color: #fca5a5;
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    line-height: 1;
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+.admin-warning-close:hover {
+    opacity: 1;
+}
+
+[data-theme="light"] .admin-warning-banner {
+    background: #fef2f2;
+    border-color: #f87171;
+}
+[data-theme="light"] .admin-warning-text {
+    color: #7f1d1d;
+}
+[data-theme="light"] .admin-warning-text strong {
+    color: #991b1b;
+}
+[data-theme="light"] .admin-warning-text code {
+    background: rgba(0,0,0,0.08);
+    color: #92400e;
+}
+[data-theme="light"] .admin-warning-text a {
+    color: #2563eb;
+}
+[data-theme="light"] .admin-warning-close {
+    color: #991b1b;
+}
+
 /* ── Login Page ─────────────────────────────────────────── */
 .login-container {
     display: flex;

@@ -42,6 +42,10 @@
                         class="nav-link {% if request.endpoint == 'kalender' %}active{% endif %}">
                         <span class="nav-icon">📅</span> Kalender
                     </a>
+                    <a href="{{ url_for('export_pdf_config') }}"
+                        class="nav-link {% if 'export_pdf' in request.endpoint|default('') %}active{% endif %}">
+                        <span class="nav-icon">📄</span> PDF-Export
+                    </a>
                 </div>
 
                 <div class="nav-section">
@@ -130,6 +134,20 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            {% if show_admin_warning %}
+            <div class="admin-warning-banner" id="adminWarningBanner">
+                <div class="admin-warning-content">
+                    <span class="admin-warning-icon">⚠️</span>
+                    <div class="admin-warning-text">
+                        <strong>Sicherheitshinweis:</strong> Sie sind mit dem Standard-Konto <code>admin</code> angemeldet.
+                        Bitte erstellen Sie unter
+                        <a href="{{ url_for('admin_nutzer') }}">Administration &rarr; Benutzer</a>
+                        einen neuen Administrator mit einem sicheren Passwort und löschen Sie anschließend das Konto <code>admin</code>.
+                    </div>
+                    <button class="admin-warning-close" onclick="document.getElementById('adminWarningBanner').style.display='none'" title="Hinweis ausblenden">&times;</button>
+                </div>
+            </div>
+            {% endif %}
             {% block content %}{% endblock %}
         </main>
     </div>

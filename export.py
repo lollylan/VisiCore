@@ -7,7 +7,7 @@ import os
 from datetime import datetime, date
 from io import BytesIO
 
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
 from reportlab.lib.units import mm, cm
 from reportlab.platypus import (
@@ -528,6 +528,165 @@ def generate_kalender_pdf(kalender_daten, tage, titel='Besuchskalender', praxis_
         ]))
         elements.append(table)
         elements.append(Spacer(1, 2*mm))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
+# ============================================================
+# Konfigurierbarer PDF-Export
+# ============================================================
+
+EXPORT_COLUMN_DEFS = {
+    'name':               {'label': 'Name',                  'weight': 3.5},
+    'geburtsdatum':       {'label': 'Geb.-Datum',            'weight': 2.0},
+    'einrichtung_station':{'label': 'Einrichtung / Station', 'weight': 3.5},
+    'adresse':            {'label': 'Adresse',               'weight': 4.0},
+    'behandler':          {'label': 'Behandler',             'weight': 2.5},
+    'letzter_besuch':     {'label': 'Letzter Besuch',        'weight': 2.0},
+    'geplanter_besuch':   {'label': 'Nächster Besuch',       'weight': 2.0},
+    'intervall':          {'label': 'Intervall',             'weight': 1.5},
+    'cave':               {'label': 'CAVE',                  'weight': 3.0},
+    'notizen':            {'label': 'Notizen',               'weight': 4.0},
+    'impfungen':          {'label': 'Offene Impfungen',      'weight': 5.0},
+}
+
+
+def generate_custom_pdf(patienten, felder, impfungen_map=None, titel='Patientenliste'):
+    """
+    Generiert ein konfigurierbares PDF mit ausgewaehlten Spalten.
+    patienten: Liste von dict-artigen Patienten-Rows
+    felder: Liste von Feld-Schluesseln (z.B. ['geburtsdatum', 'cave', ...])
+    impfungen_map: Dict {patient_id: [impfung_dicts]} oder None
+    titel: Titel des PDFs
+    Gibt: BytesIO-Objekt mit dem PDF zurueck.
+    """
+    # Name ist immer dabei
+    active_cols = ['name'] + [f for f in felder if f != 'name' and f in EXPORT_COLUMN_DEFS]
+
+    # Ab 7 Spalten Querformat
+    use_landscape = len(active_cols) >= 7
+    pagesize = landscape(A4) if use_landscape else A4
+    page_width = pagesize[0]
+    usable_width = page_width - 3.0 * cm  # 1.5cm Rand links + rechts
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=pagesize,
+                            leftMargin=1.5*cm, rightMargin=1.5*cm,
+                            topMargin=1.5*cm, bottomMargin=1.5*cm)
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('TitleCustom2', parent=styles['Title'],
+                                  fontSize=16, spaceAfter=6*mm)
+    info_style = ParagraphStyle('Info2', parent=styles['Normal'],
+                                 fontSize=9, textColor=colors.HexColor('#555555'))
+    header_style = ParagraphStyle('Header2', parent=styles['Normal'],
+                                   fontSize=8, textColor=colors.white)
+    cell_style = ParagraphStyle('Cell2', parent=styles['Normal'], fontSize=8)
+    cave_style = ParagraphStyle('Cave2', parent=styles['Normal'],
+                                 fontSize=8, textColor=colors.HexColor('#cc0000'))
+    overdue_style = ParagraphStyle('Overdue2', parent=styles['Normal'],
+                                    fontSize=8, textColor=colors.HexColor('#cc0000'))
+
+    elements = []
+
+    # Titel und Info
+    elements.append(Paragraph(titel, title_style))
+    elements.append(Paragraph(
+        f"Erstellt am {datetime.now().strftime('%d.%m.%Y %H:%M')} | "
+        f"{len(patienten)} Patient{'en' if len(patienten) != 1 else ''}",
+        info_style
+    ))
+    elements.append(Spacer(1, 8*mm))
+
+    if not patienten:
+        elements.append(Paragraph("Keine Patienten gefunden.", info_style))
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer
+
+    # Spaltenbreiten berechnen
+    total_weight = sum(EXPORT_COLUMN_DEFS[c]['weight'] for c in active_cols)
+    col_widths = [(EXPORT_COLUMN_DEFS[c]['weight'] / total_weight) * usable_width
+                  for c in active_cols]
+
+    # Kopfzeile
+    header_row = [Paragraph(EXPORT_COLUMN_DEFS[c]['label'], header_style)
+                  for c in active_cols]
+    table_data = [header_row]
+
+    today_str = date.today().isoformat()
+
+    for p in patienten:
+        row = []
+        for col in active_cols:
+            if col == 'name':
+                text = f"{p['nachname']}, {p['vorname']}"
+                row.append(Paragraph(text, cell_style))
+            elif col == 'geburtsdatum':
+                row.append(Paragraph(format_datum(p.get('geburtsdatum')), cell_style))
+            elif col == 'einrichtung_station':
+                e_name = p.get('einrichtung_name') or ''
+                s_name = p.get('station_name') or ''
+                if e_name and s_name:
+                    text = f"{e_name} / {s_name}"
+                elif e_name:
+                    text = e_name
+                elif s_name:
+                    text = s_name
+                else:
+                    text = '\u2013'
+                row.append(Paragraph(text, cell_style))
+            elif col == 'adresse':
+                row.append(Paragraph(p.get('adresse') or '\u2013', cell_style))
+            elif col == 'behandler':
+                row.append(Paragraph(p.get('behandler_name') or '\u2013', cell_style))
+            elif col == 'letzter_besuch':
+                row.append(Paragraph(format_datum(p.get('letzter_besuch')), cell_style))
+            elif col == 'geplanter_besuch':
+                nb = p.get('naechster_besuch')
+                style = overdue_style if nb and nb <= today_str else cell_style
+                row.append(Paragraph(format_datum(nb), style))
+            elif col == 'intervall':
+                iv = p.get('resolved_intervall_tage')
+                text = f"{iv} Tage" if iv else '\u2013'
+                row.append(Paragraph(text, cell_style))
+            elif col == 'cave':
+                row.append(Paragraph(p.get('cave') or '\u2013', cave_style))
+            elif col == 'notizen':
+                row.append(Paragraph(p.get('notizen') or '\u2013', cell_style))
+            elif col == 'impfungen':
+                imp_list = (impfungen_map or {}).get(p['id'], [])
+                if imp_list:
+                    texte = []
+                    for imp in imp_list:
+                        status = STATUS_LABELS.get(imp.get('status', ''), imp.get('status', ''))
+                        ev = EINVERSTAENDNIS_LABELS.get(
+                            imp.get('einverstaendnis_status', ''),
+                            imp.get('einverstaendnis_status', ''))
+                        texte.append(f"{imp['impftyp']}: {status} (EV: {ev})")
+                    row.append(Paragraph('<br/>'.join(texte), cell_style))
+                else:
+                    row.append(Paragraph('\u2013', cell_style))
+        table_data.append(row)
+
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d3050')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(table)
 
     doc.build(elements)
     buffer.seek(0)

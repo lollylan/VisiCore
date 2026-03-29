@@ -113,10 +113,15 @@ def create_app():
     # ── Kontext-Injection ─────────────────────────────────
     @app.context_processor
     def inject_globals():
+        show_admin_warning = (
+            current_user.is_authenticated
+            and current_user.benutzername == 'admin'
+        )
         return {
             'app_name': 'VisiCore',
             'current_year': date.today().year,
-            'now': datetime.now
+            'now': datetime.now,
+            'show_admin_warning': show_admin_warning
         }
 
     # ── Security Headers ──────────────────────────────────
@@ -1729,6 +1734,88 @@ def create_app():
             mimetype='application/pdf',
             as_attachment=True
         )
+
+    # ════════════════════════════════════════════════════════
+    # KONFIGURIERBARER PDF-EXPORT
+    # ════════════════════════════════════════════════════════
+
+    @app.route('/export/pdf')
+    @login_required
+    def export_pdf_config():
+        einrichtungen = db.get_einrichtungen()
+        behandler = db.get_alle_behandler()
+        return render_template('export_pdf.html',
+                               einrichtungen=einrichtungen,
+                               behandler=behandler)
+
+    @app.route('/export/pdf', methods=['POST'])
+    @login_required
+    def export_pdf_generate():
+        filter_typ = request.form.get('filter_typ', 'alle')
+        felder = request.form.getlist('felder')
+
+        if not felder:
+            flash('Bitte mindestens eine Spalte auswählen.', 'warning')
+            return redirect(url_for('export_pdf_config'))
+
+        # Filter-Parameter aufbauen
+        kwargs = {}
+        titel_teile = ['Patientenliste']
+
+        if filter_typ == 'faellige':
+            kwargs['nur_faellige'] = True
+            titel_teile = ['Fällige Patienten']
+        elif filter_typ == 'einrichtung':
+            eid = request.form.get('einrichtung_id', type=int)
+            if eid:
+                kwargs['einrichtung_id'] = eid
+                einr = db.get_einrichtung(eid)
+                if einr:
+                    titel_teile = [f'Patienten: {einr["name"]}']
+        elif filter_typ == 'station':
+            sid = request.form.get('station_id', type=int)
+            if sid:
+                kwargs['station_id'] = sid
+                st = db.get_station(sid)
+                if st:
+                    titel_teile = [f'Patienten: {st["einrichtung_name"]} / {st["name"]}']
+        elif filter_typ == 'wohnort':
+            wt = request.form.get('wohnort_typ')
+            if wt in ('ZUHAUSE', 'HEIM'):
+                kwargs['wohnort_typ'] = wt
+                label = 'Hausbesuche' if wt == 'ZUHAUSE' else 'Heimbewohner'
+                titel_teile = [label]
+        elif filter_typ == 'behandler':
+            bid = request.form.get('behandler_id', type=int)
+            if bid:
+                kwargs['behandler_id'] = bid
+
+        patienten = [dict(p) for p in db.get_patienten_fuer_export(**kwargs)]
+
+        # Impfungen laden falls gewuenscht
+        impfungen_map = None
+        if 'impfungen' in felder:
+            impfungen_map = {}
+            for p in patienten:
+                offene = db.get_offene_impfungen(p['id'])
+                impfungen_map[p['id']] = [dict(i) for i in offene]
+
+        titel = titel_teile[0]
+        buf = pdf_export.generate_custom_pdf(patienten, felder, impfungen_map, titel)
+
+        dateiname = titel.replace(' ', '_').replace(':', '').replace('/', '_')
+        return send_file(
+            buf,
+            download_name=f'{dateiname}_{date.today().strftime("%Y%m%d")}.pdf',
+            mimetype='application/pdf',
+            as_attachment=True
+        )
+
+    @app.route('/api/stationen/<int:einrichtung_id>')
+    @login_required
+    def api_stationen_fuer_einrichtung(einrichtung_id):
+        stationen = db.get_stationen(einrichtung_id)
+        return jsonify([{'id': s['id'], 'name': s['name']} for s in stationen])
 
     # ════════════════════════════════════════════════════════
     # GEOCODING (API)
