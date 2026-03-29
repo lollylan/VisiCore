@@ -67,12 +67,13 @@ def create_app():
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB Upload-Limit
 
     # Session-Sicherheit
+    use_https = os.environ.get('HTTPS', 'true').lower().strip() in ('true', '1', 'yes', 'ja')
     app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_SECURE'] = use_https
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
     app.config['REMEMBER_COOKIE_HTTPONLY'] = True
-    app.config['REMEMBER_COOKIE_SECURE'] = True
+    app.config['REMEMBER_COOKIE_SECURE'] = use_https
     app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 
     bcrypt = Bcrypt(app)

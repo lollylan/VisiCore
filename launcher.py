@@ -41,6 +41,9 @@ def ensure_setup(base_dir):
             f.write(f'SECRET_KEY={secret_key}\n')
             f.write('PORT=5001\n')
             f.write('PRAXIS_STADT=Wuerzburg\n')
+            f.write('# HTTPS=true fuer verschluesselte Verbindung (Standard)\n')
+            f.write('# HTTPS=false falls Probleme mit dem Zertifikat auftreten\n')
+            f.write('HTTPS=true\n')
         first_run = True
 
     return first_run
@@ -84,16 +87,24 @@ def main():
         load_dotenv(os.path.join(base_dir, '.env'))
 
         port = int(os.environ.get('PORT', 5001))
-        # TLS-Zertifikat sicherstellen
-        from tls import ensure_certificate
-        data_dir = os.path.join(base_dir, 'data')
-        cert_path, key_path = ensure_certificate(data_dir)
-
-        url = f'https://localhost:{port}'
+        use_https = os.environ.get('HTTPS', 'true').lower().strip() in ('true', '1', 'yes', 'ja')
 
         # App importieren und erstellen
         from app import create_app
         app = create_app()
+
+        if use_https:
+            # TLS-Zertifikat sicherstellen
+            from tls import ensure_certificate
+            data_dir = os.path.join(base_dir, 'data')
+            cert_path, key_path = ensure_certificate(data_dir)
+            protocol = 'https'
+            ssl_ctx = (cert_path, key_path)
+        else:
+            protocol = 'http'
+            ssl_ctx = None
+
+        url = f'{protocol}://localhost:{port}'
 
         # Browser nach kurzer Verzoegerung oeffnen
         def open_browser():
@@ -105,9 +116,14 @@ def main():
         ips = get_local_ips()
         print(f'  Server laeuft: {url}')
         for ip in ips:
-            print(f'  Im Netzwerk:   https://{ip}:{port}')
+            print(f'  Im Netzwerk:   {protocol}://{ip}:{port}')
         print()
-        print('  WICHTIG: Immer https:// verwenden (nicht http://)')
+        if use_https:
+            print('  Modus: HTTPS (verschluesselt)')
+            print('  Bei Problemen: in .env HTTPS=false setzen')
+        else:
+            print('  Modus: HTTP (unverschluesselt)')
+            print('  Fuer HTTPS: in .env HTTPS=true setzen')
         print()
         if first_run:
             print('  +-------------------------------+')
@@ -121,35 +137,34 @@ def main():
         print('  solange VisiCore benutzt wird.')
         print()
 
-        # HTTP→HTTPS Redirect-Server starten (gleicher Port ohne TLS)
-        # Faengt Nutzer ab, die http:// statt https:// eingeben
-        from flask import Flask as _Flask, redirect as _redirect, request as _request
-        redirect_app = _Flask('redirect')
+        if use_https:
+            # HTTP→HTTPS Redirect-Server auf gaengigen Ports
+            from flask import Flask as _Flask, redirect as _redirect, request as _request
+            redirect_app = _Flask('redirect')
 
-        @redirect_app.route('/', defaults={'path': ''})
-        @redirect_app.route('/<path:path>')
-        def _http_redirect(path):
-            host = _request.host.split(':')[0]
-            return _redirect(f'https://{host}:{port}/{path}', code=301)
+            @redirect_app.route('/', defaults={'path': ''})
+            @redirect_app.route('/<path:path>')
+            def _http_redirect(path):
+                host = _request.host.split(':')[0]
+                return _redirect(f'https://{host}:{port}/{path}', code=301)
 
-        def run_http_redirect(http_port):
-            try:
-                from werkzeug.serving import run_simple as _run
-                _run('0.0.0.0', http_port, redirect_app,
-                     threaded=True, use_reloader=False)
-            except Exception:
-                pass  # Port nicht verfuegbar – kein Problem
+            def run_http_redirect(http_port):
+                try:
+                    from werkzeug.serving import run_simple as _run
+                    _run('0.0.0.0', http_port, redirect_app,
+                         threaded=True, use_reloader=False)
+                except Exception:
+                    pass
 
-        # Port 80 und Port 5000 (port-1) als Redirect
-        for hp in [80, port - 1]:
-            if hp > 0 and hp != port:
-                threading.Thread(target=run_http_redirect, args=(hp,),
-                                 daemon=True).start()
+            for hp in [80, port - 1]:
+                if hp > 0 and hp != port:
+                    threading.Thread(target=run_http_redirect, args=(hp,),
+                                     daemon=True).start()
 
-        # HTTPS-Server starten (werkzeug mit TLS)
+        # Server starten
         from werkzeug.serving import run_simple
         run_simple('0.0.0.0', port, app,
-                   ssl_context=(cert_path, key_path),
+                   ssl_context=ssl_ctx,
                    threaded=True,
                    use_reloader=False)
 
