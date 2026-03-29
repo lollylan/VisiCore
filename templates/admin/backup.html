@@ -2,29 +2,87 @@
 {% block title %}Backup – {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>💾 Backup &amp; Wiederherstellung</h1>
+    <h1>Backup &amp; Wiederherstellung</h1>
 </div>
+
+{# ── Transportpaket (Transfer zwischen Systemen) ── #}
+
+<div class="card" style="border-color: var(--accent);">
+    <div class="card-header">
+        <h3 class="card-title" style="color:var(--accent);">Transportpaket (Transfer zwischen Systemen)</h3>
+    </div>
+    <p style="color:var(--text-secondary); margin-bottom:1.5rem; font-size:0.9rem;">
+        Zum Uebertragen der Datenbank auf einen anderen Rechner.
+        Das Paket wird mit einem frei waehlbaren Passwort geschuetzt.
+    </p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
+        {# Export #}
+        <div>
+            <h4 style="margin-bottom:0.75rem; color:var(--text-primary);">Exportieren</h4>
+            <form method="POST" action="{{ url_for('admin_transport_export') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="export_pw">Passwort festlegen:</label>
+                    <input type="password" name="transport_passwort" id="export_pw"
+                           class="form-control" required minlength="4"
+                           placeholder="Min. 4 Zeichen">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">
+                    Transportpaket erstellen
+                </button>
+            </form>
+        </div>
+
+        {# Import #}
+        <div>
+            <h4 style="margin-bottom:0.75rem; color:var(--text-primary);">Importieren</h4>
+            <form method="POST" action="{{ url_for('admin_transport_import') }}"
+                  enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="import_file">Transportpaket-Datei:</label>
+                    <input type="file" name="transport_datei" id="import_file"
+                           class="form-control" accept=".visicore" required>
+                </div>
+                <div class="form-group">
+                    <label for="import_pw">Passwort:</label>
+                    <input type="password" name="transport_passwort" id="import_pw"
+                           class="form-control" required
+                           placeholder="Passwort vom Export">
+                </div>
+                <button type="submit" class="btn btn-warning" style="width:100%;"
+                    onclick="return confirm('Datenbank wirklich ersetzen? Alle aktuellen Daten gehen verloren!')">
+                    Transportpaket importieren
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# ── Lokales Backup (gleiches System) ── #}
 
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">📦 Backup erstellen</h3>
+        <h3 class="card-title">Lokales Backup</h3>
     </div>
     <p style="color:var(--text-secondary); margin-bottom:1rem; font-size:0.9rem;">
-        Erstellt eine verschlüsselte Kopie der Datenbank im Ordner <code>backups/</code>.
+        Sicherungskopie fuer dieses System (funktioniert nur auf diesem Rechner).
     </p>
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="aktion" value="backup">
-        <button type="submit" class="btn btn-primary">💾 Backup jetzt erstellen</button>
+        <button type="submit" class="btn btn-primary">Backup jetzt erstellen</button>
     </form>
 </div>
 
 <div class="card" style="border-color: var(--warning);">
     <div class="card-header">
-        <h3 class="card-title" style="color:var(--warning);">⚠️ Datenbank wiederherstellen</h3>
+        <h3 class="card-title" style="color:var(--warning);">Lokales Backup wiederherstellen</h3>
     </div>
     <p style="color:var(--text-secondary); margin-bottom:1rem; font-size:0.9rem;">
         <strong>Achtung:</strong> Die aktuelle Datenbank wird durch das Backup ersetzt!
+        Funktioniert nur mit Backups von diesem System.
     </p>
     <form method="POST" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -34,7 +92,7 @@
         </div>
         <button type="submit" class="btn btn-warning"
             onclick="return confirm('Datenbank wirklich ersetzen? Alle aktuellen Daten gehen verloren!')">
-            ♻️ Wiederherstellen
+            Wiederherstellen
         </button>
     </form>
 </div>
@@ -42,14 +100,14 @@
 {% if backups %}
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">📂 Vorhandene Backups</h3>
+        <h3 class="card-title">Vorhandene Backups</h3>
     </div>
     <div class="table-responsive" style="border:none;">
         <table>
             <thead>
                 <tr>
                     <th>Dateiname</th>
-                    <th>Größe</th>
+                    <th>Groesse</th>
                     <th></th>
                 </tr>
             </thead>
@@ -59,7 +117,7 @@
                     <td>{{ b.name }}</td>
                     <td>{{ "%.1f"|format(b.groesse / 1024) }} KB</td>
                     <td><a href="{{ url_for('admin_backup_download', dateiname=b.name) }}"
-                            class="btn btn-sm btn-outline">⬇ Download</a></td>
+                            class="btn btn-sm btn-outline">Download</a></td>
                 </tr>
                 {% endfor %}
             </tbody>

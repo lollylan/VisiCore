@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 import time as _time
 from collections import defaultdict
 
+import sqlcipher3
 import database as db
 import routing
 import export as pdf_export
@@ -1347,13 +1348,43 @@ def create_app():
                 if datei and datei.filename:
                     db_path = app.config['DB_PATH']
 
-                    close_db_temp = g.pop('db', None)
-                    if close_db_temp:
-                        close_db_temp.close()
+                    # Datei zuerst temporaer speichern und validieren
+                    import tempfile
+                    tmp_fd, tmp_path = tempfile.mkstemp(suffix='.db')
+                    os.close(tmp_fd)
+                    try:
+                        datei.save(tmp_path)
 
-                    datei.save(db_path)
-                    flash('Datenbank wiederhergestellt. Bitte neu einloggen.', 'success')
-                    return redirect(url_for('login'))
+                        # Pruefen ob die DB mit dem aktuellen Key oeffenbar ist
+                        test_conn = sqlcipher3.connect(tmp_path)
+                        try:
+                            test_conn.execute(f"PRAGMA key = '{app.config['DB_KEY']}'")
+                            test_conn.execute("SELECT count(*) FROM sqlite_master")
+                            test_conn.close()
+                        except Exception:
+                            test_conn.close()
+                            os.unlink(tmp_path)
+                            flash(
+                                'Die Backup-Datei kann nicht importiert werden, da sie '
+                                'mit einem anderen Verschluesselungsschluessel (DB_KEY) '
+                                'erstellt wurde. Bitte den DB_KEY aus der .env-Datei '
+                                'des Quellsystems uebernehmen.',
+                                'danger'
+                            )
+                            return redirect(url_for('admin_backup'))
+
+                        # Validierung OK – jetzt die aktive DB ersetzen
+                        close_db_temp = g.pop('db', None)
+                        if close_db_temp:
+                            close_db_temp.close()
+
+                        shutil.copy2(tmp_path, db_path)
+                        protokoll('WIEDERHERGESTELLT', 'Backup', None, datei.filename)
+                        flash('Datenbank wiederhergestellt. Bitte neu einloggen.', 'success')
+                        return redirect(url_for('login'))
+                    finally:
+                        if os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
                 else:
                     flash('Keine Backup-Datei ausgewaehlt.', 'danger')
 
@@ -1380,6 +1411,131 @@ def create_app():
         if os.path.exists(pfad):
             return send_file(pfad, download_name=dateiname, as_attachment=True)
         abort(404)
+
+    # ── Transportpaket (passwortgeschuetzter Transfer) ────
+
+    @app.route('/admin/backup/transport-export', methods=['POST'])
+    @login_required
+    @admin_required
+    def admin_transport_export():
+        passwort = request.form.get('transport_passwort', '').strip()
+        if len(passwort) < 4:
+            flash('Das Passwort muss mindestens 4 Zeichen lang sein.', 'danger')
+            return redirect(url_for('admin_backup'))
+
+        db_path = app.config['DB_PATH']
+        if not os.path.exists(db_path):
+            flash('Keine Datenbank vorhanden.', 'danger')
+            return redirect(url_for('admin_backup'))
+
+        import tempfile
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix='.visicore')
+        os.close(tmp_fd)
+        # Sicherstellen, dass die Zieldatei nicht existiert (ATTACH braucht neue Datei)
+        os.unlink(tmp_path)
+
+        try:
+            # Aktive DB schliessen fuer sauberen Lesevorgang
+            close_db_temp = g.pop('db', None)
+            if close_db_temp:
+                close_db_temp.close()
+
+            # DB mit internem Key oeffnen, mit Nutzer-Passwort neu verschluesseln
+            conn = sqlcipher3.connect(db_path)
+            conn.execute(f"PRAGMA key = '{app.config['DB_KEY']}'")
+            # Passwort escapen (einfache Anfuehrungszeichen verdoppeln)
+            safe_pw = passwort.replace("'", "''")
+            conn.execute(f"ATTACH DATABASE '{tmp_path}' AS export KEY '{safe_pw}'")
+            conn.execute("SELECT sqlcipher_export('export')")
+            conn.execute("DETACH DATABASE export")
+            conn.close()
+
+            ts = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            dateiname = f'visicore_transport_{ts}.visicore'
+
+            protokoll('ERSTELLT', 'Transportpaket', None, dateiname)
+
+            return send_file(
+                tmp_path,
+                download_name=dateiname,
+                mimetype='application/octet-stream',
+                as_attachment=True
+            )
+        except Exception as e:
+            flash(f'Fehler beim Erstellen des Transportpakets: {e}', 'danger')
+            return redirect(url_for('admin_backup'))
+        finally:
+            if os.path.exists(tmp_path):
+                # Aufraumen nach dem Senden (send_file liest zuerst)
+                pass
+
+    @app.route('/admin/backup/transport-import', methods=['POST'])
+    @login_required
+    @admin_required
+    def admin_transport_import():
+        passwort = request.form.get('transport_passwort', '').strip()
+        datei = request.files.get('transport_datei')
+
+        if not datei or not datei.filename:
+            flash('Keine Datei ausgewaehlt.', 'danger')
+            return redirect(url_for('admin_backup'))
+        if not passwort:
+            flash('Bitte das Passwort eingeben, mit dem das Paket erstellt wurde.', 'danger')
+            return redirect(url_for('admin_backup'))
+
+        import tempfile
+        # Hochgeladene Datei speichern
+        tmp_fd, tmp_upload = tempfile.mkstemp(suffix='.visicore')
+        os.close(tmp_fd)
+        # Zieldatei fuer Umschluesselung
+        tmp_fd2, tmp_rekey = tempfile.mkstemp(suffix='.db')
+        os.close(tmp_fd2)
+        os.unlink(tmp_rekey)
+
+        try:
+            datei.save(tmp_upload)
+
+            # Transportpaket mit Nutzer-Passwort oeffnen
+            safe_pw = passwort.replace("'", "''")
+            conn = sqlcipher3.connect(tmp_upload)
+            try:
+                conn.execute(f"PRAGMA key = '{safe_pw}'")
+                conn.execute("SELECT count(*) FROM sqlite_master")
+            except Exception:
+                conn.close()
+                flash(
+                    'Falsches Passwort oder ungueltige Datei. '
+                    'Bitte das Passwort eingeben, das beim Export verwendet wurde.',
+                    'danger'
+                )
+                return redirect(url_for('admin_backup'))
+
+            # Mit lokalem DB_KEY neu verschluesseln
+            local_key = app.config['DB_KEY']
+            conn.execute(f"ATTACH DATABASE '{tmp_rekey}' AS import_db KEY '{local_key}'")
+            conn.execute("SELECT sqlcipher_export('import_db')")
+            conn.execute("DETACH DATABASE import_db")
+            conn.close()
+
+            # Aktive DB ersetzen
+            db_path = app.config['DB_PATH']
+            close_db_temp = g.pop('db', None)
+            if close_db_temp:
+                close_db_temp.close()
+
+            shutil.copy2(tmp_rekey, db_path)
+            protokoll('WIEDERHERGESTELLT', 'Transportpaket', None, datei.filename)
+            flash('Datenbank aus Transportpaket wiederhergestellt. Bitte neu einloggen.', 'success')
+            return redirect(url_for('login'))
+
+        except Exception as e:
+            flash(f'Fehler beim Import: {e}', 'danger')
+            return redirect(url_for('admin_backup'))
+        finally:
+            if os.path.exists(tmp_upload):
+                os.unlink(tmp_upload)
+            if os.path.exists(tmp_rekey):
+                os.unlink(tmp_rekey)
 
     # ════════════════════════════════════════════════════════
     # EINSTELLUNGEN (Admin)
