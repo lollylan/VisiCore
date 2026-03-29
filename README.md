@@ -72,8 +72,10 @@ Login: `admin` / `admin` (Passwortwechsel wird erzwungen).
 
 ### Backup & Transfer
 - Lokale Backups fuer Sicherungskopien auf demselben System
+- **Automatisches Backup** – taeglich zu konfigurierbarer Uhrzeit (opt-in)
+- Konfigurierbare Aufbewahrungsdauer (1–365 Tage), alte Auto-Backups werden automatisch geloescht
 - Passwortgeschuetzte Transportpakete (.visicore) fuer Transfer zwischen Rechnern
-- Automatische Umschluesselung: interner DB-Key verlaeesst nie das System
+- Automatische Umschluesselung: interner DB-Key verlaesst nie das System
 - Validierung beim Import mit klaren Fehlermeldungen
 
 ### Admin
@@ -107,6 +109,7 @@ Login: `admin` / `admin` (Passwortwechsel wird erzwungen).
 | PDF | ReportLab |
 | TLS | Cryptography (automatisches Zertifikat) |
 | Geocoding | Geopy |
+| Scheduler | APScheduler (automatisches Backup) |
 | Server | Werkzeug (HTTPS) |
 | Frontend | Jinja2, HTML5, CSS3 (Dark Theme) |
 
