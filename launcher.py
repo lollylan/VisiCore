@@ -107,6 +107,8 @@ def main():
         for ip in ips:
             print(f'  Im Netzwerk:   https://{ip}:{port}')
         print()
+        print('  WICHTIG: Immer https:// verwenden (nicht http://)')
+        print()
         if first_run:
             print('  +-------------------------------+')
             print('  |  Erster Login:                 |')
@@ -118,6 +120,31 @@ def main():
         print('  Dieses Fenster offen lassen,')
         print('  solange VisiCore benutzt wird.')
         print()
+
+        # HTTP→HTTPS Redirect-Server starten (gleicher Port ohne TLS)
+        # Faengt Nutzer ab, die http:// statt https:// eingeben
+        from flask import Flask as _Flask, redirect as _redirect, request as _request
+        redirect_app = _Flask('redirect')
+
+        @redirect_app.route('/', defaults={'path': ''})
+        @redirect_app.route('/<path:path>')
+        def _http_redirect(path):
+            host = _request.host.split(':')[0]
+            return _redirect(f'https://{host}:{port}/{path}', code=301)
+
+        def run_http_redirect(http_port):
+            try:
+                from werkzeug.serving import run_simple as _run
+                _run('0.0.0.0', http_port, redirect_app,
+                     threaded=True, use_reloader=False)
+            except Exception:
+                pass  # Port nicht verfuegbar – kein Problem
+
+        # Port 80 und Port 5000 (port-1) als Redirect
+        for hp in [80, port - 1]:
+            if hp > 0 and hp != port:
+                threading.Thread(target=run_http_redirect, args=(hp,),
+                                 daemon=True).start()
 
         # HTTPS-Server starten (werkzeug mit TLS)
         from werkzeug.serving import run_simple
