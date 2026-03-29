@@ -30,6 +30,9 @@ import database as db
 import routing
 import export as pdf_export
 
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+
 
 # Pfad-Helfer (fuer Portable-Betrieb und .exe)
 import sys
@@ -1344,6 +1347,35 @@ def create_app():
                     protokoll('ERSTELLT', 'Backup', None, backup_name)
                     flash(f'Backup erstellt: {backup_name}', 'success')
 
+            elif aktion == 'auto_backup_settings':
+                aktiv = '1' if request.form.get('auto_backup_aktiv') else '0'
+                uhrzeit = request.form.get('auto_backup_uhrzeit', '00:00').strip()
+                aufbewahrung = request.form.get('auto_backup_aufbewahrung', '7').strip()
+                # Validierung
+                try:
+                    h, m = [int(x) for x in uhrzeit.split(':')]
+                    if not (0 <= h <= 23 and 0 <= m <= 59):
+                        raise ValueError
+                except (ValueError, AttributeError):
+                    uhrzeit = '00:00'
+                try:
+                    tage = int(aufbewahrung)
+                    if tage < 1:
+                        tage = 1
+                    if tage > 365:
+                        tage = 365
+                except (ValueError, TypeError):
+                    tage = 7
+                db.set_einstellung('auto_backup_aktiv', aktiv)
+                db.set_einstellung('auto_backup_uhrzeit', uhrzeit)
+                db.set_einstellung('auto_backup_aufbewahrung', str(tage))
+                # Scheduler neu konfigurieren
+                app.backup_scheduler_konfigurieren(app.backup_scheduler)
+                if aktiv == '1':
+                    flash(f'Automatisches Backup aktiviert: taeglich um {uhrzeit} Uhr', 'success')
+                else:
+                    flash('Automatisches Backup deaktiviert.', 'info')
+
             elif aktion == 'restore':
                 datei = request.files.get('backup_datei')
                 if datei and datei.filename:
@@ -1401,7 +1433,13 @@ def create_app():
                     groesse = os.path.getsize(pfad)
                     backups.append({'name': f, 'groesse': groesse})
 
-        return render_template('admin/backup.html', backups=backups)
+        auto_backup = {
+            'aktiv': db.get_einstellung('auto_backup_aktiv', '0') == '1',
+            'uhrzeit': db.get_einstellung('auto_backup_uhrzeit', '00:00'),
+            'aufbewahrung': db.get_einstellung('auto_backup_aufbewahrung', '7'),
+        }
+        return render_template('admin/backup.html', backups=backups,
+                               auto_backup=auto_backup)
 
     @app.route('/admin/backup/<dateiname>/download')
     @login_required
@@ -2050,6 +2088,73 @@ def create_app():
             admin_user = db.get_user_by_name('admin')
             if admin_user:
                 db.set_passwort_muss_geaendert_werden(admin_user['id'], True)
+
+    # ════════════════════════════════════════════════════════
+    # AUTOMATISCHES BACKUP (Scheduler)
+    # ════════════════════════════════════════════════════════
+
+    def auto_backup_ausfuehren():
+        """Erstellt automatisch ein Backup und raeumt alte Auto-Backups auf."""
+        with app.app_context():
+            db_path = app.config['DB_PATH']
+            if not os.path.exists(db_path):
+                return
+
+            backup_dir = os.path.join(get_base_dir(), 'backups')
+            os.makedirs(backup_dir, exist_ok=True)
+            ts = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            backup_name = f'visicore_auto_{ts}.db'
+            backup_path = os.path.join(backup_dir, backup_name)
+
+            try:
+                shutil.copy2(db_path, backup_path)
+                db.protokoll('ERSTELLT', 'Auto-Backup', None, backup_name)
+            except Exception as e:
+                app.logger.error(f'Auto-Backup fehlgeschlagen: {e}')
+                return
+
+            # Alte Auto-Backups aufraeumen
+            try:
+                tage = int(db.get_einstellung('auto_backup_aufbewahrung', '7'))
+            except (ValueError, TypeError):
+                tage = 7
+            grenze = datetime.now() - timedelta(days=tage)
+
+            for f in os.listdir(backup_dir):
+                if not f.startswith('visicore_auto_') or not f.endswith('.db'):
+                    continue
+                pfad = os.path.join(backup_dir, f)
+                try:
+                    mtime = datetime.fromtimestamp(os.path.getmtime(pfad))
+                    if mtime < grenze:
+                        os.remove(pfad)
+                except Exception:
+                    pass
+
+    def backup_scheduler_konfigurieren(scheduler):
+        """Konfiguriert den Scheduler basierend auf den DB-Einstellungen."""
+        scheduler.remove_all_jobs()
+        with app.app_context():
+            aktiv = db.get_einstellung('auto_backup_aktiv', '0') == '1'
+            if not aktiv:
+                return
+            uhrzeit = db.get_einstellung('auto_backup_uhrzeit', '00:00')
+            try:
+                stunde, minute = [int(x) for x in uhrzeit.split(':')]
+            except (ValueError, AttributeError):
+                stunde, minute = 0, 0
+            scheduler.add_job(
+                auto_backup_ausfuehren,
+                CronTrigger(hour=stunde, minute=minute),
+                id='auto_backup',
+                replace_existing=True
+            )
+
+    backup_scheduler = BackgroundScheduler(daemon=True)
+    backup_scheduler.start()
+    backup_scheduler_konfigurieren(backup_scheduler)
+    app.backup_scheduler = backup_scheduler
+    app.backup_scheduler_konfigurieren = backup_scheduler_konfigurieren
 
     return app
 

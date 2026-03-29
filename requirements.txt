@@ -21,5 +21,8 @@ python-dotenv==1.2.2
 # Geocoding
 geopy==2.4.1
 
+# Scheduler (automatisches Backup)
+APScheduler==3.10.4
+
 # TLS-Zertifikate (HTTPS)
 cryptography>=42.0.0
